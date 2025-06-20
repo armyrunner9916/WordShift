@@ -1,0 +1,1374 @@
+// index.tsx - WordShift React Native Cryptogram Puzzle App
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Dimensions,
+  Platform,
+  Vibration,
+  Alert,
+  KeyboardAvoidingView,
+  SafeAreaView,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
+import * as Haptics from 'expo-haptics';
+
+const { width: screenWidth } = Dimensions.get('window');
+
+// Calculate optimal letter box size based on screen width
+const calculateLetterBoxSize = () => {
+  const maxWordLength = 10; // Longest word in our lists
+  const horizontalPadding = 40; // Total horizontal padding
+  const gapSize = 4; // Gap between letters
+  const availableWidth = screenWidth - horizontalPadding;
+  const maxBoxSize = Math.floor((availableWidth - (maxWordLength * gapSize)) / maxWordLength);
+  return Math.min(maxBoxSize, 32); // Cap at 32 for readability
+};
+
+const letterBoxSize = calculateLetterBoxSize();
+
+// Enhanced word lists with at least 15 words per category
+const wordLists = {
+  fruits: ['APPLE', 'BANANA', 'CHERRY', 'ORANGE', 'MANGO', 'GRAPE', 'LEMON', 'PEACH', 'PLUM', 'KIWI', 'MELON', 'PAPAYA', 'COCONUT', 'APRICOT', 'PINEAPPLE', 'STRAWBERRY', 'BLUEBERRY'],
+  vegetables: ['CARROT', 'POTATO', 'TOMATO', 'ONION', 'PEPPER', 'CELERY', 'LETTUCE', 'CUCUMBER', 'SPINACH', 'CABBAGE', 'GARLIC', 'RADISH', 'BROCCOLI', 'CORN', 'PUMPKIN', 'EGGPLANT', 'ASPARAGUS'],
+  animals: ['TIGER', 'EAGLE', 'RABBIT', 'DOLPHIN', 'MONKEY', 'GIRAFFE', 'PENGUIN', 'OCTOPUS', 'ZEBRA', 'TURTLE', 'ELEPHANT', 'KANGAROO', 'LEOPARD', 'WHALE', 'SNAKE', 'PARROT', 'HAMSTER'],
+  professions: ['DOCTOR', 'TEACHER', 'ARTIST', 'PILOT', 'CHEF', 'NURSE', 'LAWYER', 'DENTIST', 'AUTHOR', 'FARMER', 'BANKER', 'ACTOR', 'SINGER', 'DANCER', 'ATHLETE', 'ENGINEER', 'SCIENTIST'],
+  countries: ['FRANCE', 'BRAZIL', 'CANADA', 'MEXICO', 'INDIA', 'EGYPT', 'SWEDEN', 'TURKEY', 'POLAND', 'GREECE', 'NORWAY', 'VIETNAM', 'SPAIN', 'GERMANY', 'JAPAN', 'ICELAND', 'MOROCCO'],
+  sports: ['SOCCER', 'TENNIS', 'SKIING', 'BOXING', 'GOLF', 'HOCKEY', 'RUGBY', 'CYCLING', 'ARCHERY', 'FENCING', 'ROWING', 'SURFING', 'BASEBALL', 'BOWLING', 'SWIMMING', 'RUNNING', 'KARATE'],
+  kitchen: ['KNIFE', 'SPOON', 'PLATE', 'BOWL', 'FORK', 'STOVE', 'OVEN', 'MIXER', 'TIMER', 'SCALE', 'PANTRY', 'FREEZER', 'BLENDER', 'TOASTER', 'GRIDDLE', 'SKILLET', 'WHISK'],
+  weather: ['SUNNY', 'CLOUDY', 'STORM', 'WINDY', 'FOGGY', 'SNOW', 'RAIN', 'THUNDER', 'HUMID', 'BREEZE', 'DRIZZLE', 'TORNADO', 'FROST', 'HAIL', 'SLEET', 'DROUGHT', 'RAINBOW'],
+  emotions: ['HAPPY', 'EXCITED', 'NERVOUS', 'ANGRY', 'PROUD', 'LONELY', 'BRAVE', 'CURIOUS', 'JEALOUS', 'PEACEFUL', 'GRATEFUL', 'WORRIED', 'CONFUSED', 'HOPEFUL', 'FEARFUL', 'JOYFUL', 'ANXIOUS'],
+  transportation: ['PLANE', 'TRAIN', 'BICYCLE', 'SUBWAY', 'FERRY', 'ROCKET', 'SCOOTER', 'YACHT', 'TAXI', 'TRUCK', 'CANOE', 'TRAM', 'HELICOPTER', 'MOTORCYCLE', 'SKATEBOARD', 'SAILBOAT', 'BALLOON'],
+  instruments: ['PIANO', 'GUITAR', 'VIOLIN', 'TRUMPET', 'DRUMS', 'FLUTE', 'HARP', 'CELLO', 'OBOE', 'BANJO', 'ORGAN', 'TUBA', 'CLARINET', 'SAXOPHONE', 'UKULELE', 'ACCORDION', 'XYLOPHONE'],
+  clothing: ['SHIRT', 'JACKET', 'GLOVES', 'SCARF', 'BOOTS', 'SWEATER', 'SOCKS', 'BELT', 'HAT', 'COAT', 'DRESS', 'JEANS', 'SHORTS', 'PAJAMAS', 'UNIFORM', 'SANDALS', 'MITTENS'],
+  technology: ['COMPUTER', 'PHONE', 'TABLET', 'CAMERA', 'PRINTER', 'MONITOR', 'KEYBOARD', 'MOUSE', 'SPEAKER', 'ROUTER', 'LAPTOP', 'HEADPHONES', 'MICROPHONE', 'SCANNER', 'PROJECTOR', 'WEBCAM', 'CHARGER'],
+  furniture: ['CHAIR', 'TABLE', 'COUCH', 'DESK', 'LAMP', 'SHELF', 'DRESSER', 'MIRROR', 'CABINET', 'STOOL', 'BENCH', 'OTTOMAN', 'BOOKCASE', 'WARDROBE', 'NIGHTSTAND', 'RECLINER', 'MATTRESS'],
+  hobbies: ['READING', 'GAMING', 'HIKING', 'PAINTING', 'DANCING', 'SINGING', 'WRITING', 'FISHING', 'COOKING', 'KNITTING', 'CAMPING', 'DRAWING', 'COLLECTING', 'PHOTOGRAPHY', 'GARDENING', 'TRAVELING', 'BAKING'],
+  school: ['PENCIL', 'NOTEBOOK', 'BACKPACK', 'ERASER', 'RULER', 'TEXTBOOK', 'CLASSROOM', 'TEACHER', 'STUDENT', 'LIBRARY', 'CAFETERIA', 'HOMEWORK', 'EXAM', 'DIPLOMA', 'PRINCIPAL', 'SCIENCE', 'HISTORY'],
+  colors: ['PURPLE', 'ORANGE', 'YELLOW', 'GREEN', 'BLUE', 'RED', 'PINK', 'BROWN', 'BLACK', 'WHITE', 'GRAY', 'SILVER', 'GOLD', 'MAROON', 'TURQUOISE', 'MAGENTA', 'CRIMSON'],
+  drinks: ['WATER', 'COFFEE', 'TEA', 'JUICE', 'MILK', 'SODA', 'LEMONADE', 'SMOOTHIE', 'COCOA', 'CIDER', 'SHAKE', 'PUNCH', 'ESPRESSO', 'CAPPUCCINO', 'CHAMPAGNE', 'MILKSHAKE', 'ICED TEA'],
+  desserts: ['CAKE', 'COOKIE', 'BROWNIE', 'PUDDING', 'CUPCAKE', 'DONUT', 'MUFFIN', 'PASTRY', 'CANDY', 'CHOCOLATE', 'FUDGE', 'TRUFFLE', 'TART', 'SUNDAE', 'CHEESECAKE', 'MOUSSE', 'SORBET'],
+  tools: ['HAMMER', 'SCREWDRIVER', 'WRENCH', 'PLIERS', 'DRILL', 'SAW', 'LEVEL', 'CHISEL', 'CLAMP', 'RULER', 'SANDER', 'SHOVEL', 'LADDER', 'TOOLBOX', 'CROWBAR', 'SCISSORS', 'GRINDER'],
+};
+
+// Color schemes for letter backgrounds
+const colorSchemes = {
+  green: { bg: '#2ecc71', text: '#ffffff' },
+  blue: { bg: '#3498db', text: '#ffffff' },
+  yellow: { bg: '#f1c40f', text: '#2c3e50' },
+  red: { bg: '#e74c3c', text: '#ffffff' },
+  black: { bg: '#2c3e50', text: '#ffffff' },
+  white: { bg: '#ffffff', text: '#2c3e50' },
+  purple: { bg: '#9b59b6', text: '#ffffff' },
+};
+
+// Theme definitions
+const lightTheme = {
+  background: '#ffffff',
+  headerBg: '#f5f5f5',
+  cardBg: '#f5f5f5',
+  text: '#333333',
+  secondaryText: '#666666',
+  accent: '#3498db',
+  success: '#2ecc71',
+  border: '#dddddd',
+  inputBg: '#ffffff',
+};
+
+const darkTheme = {
+  background: '#1a1a1a',
+  headerBg: '#2d2d2d',
+  cardBg: '#2d2d2d',
+  text: '#ffffff',
+  secondaryText: '#b0b0b0',
+  accent: '#5dade2',
+  success: '#58d68d',
+  border: '#444444',
+  inputBg: '#1a1a1a',
+};
+
+export default function App() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [difficulty, setDifficulty] = useState(6);
+  const [currentPuzzle, setCurrentPuzzle] = useState(null);
+  const [userMapping, setUserMapping] = useState({});
+  const [hintsRemaining, setHintsRemaining] = useState(3);
+  const [showFrequency, setShowFrequency] = useState(false);
+  const [solved, setSolved] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [letterColorScheme, setLetterColorScheme] = useState('green');
+  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
+  const [statistics, setStatistics] = useState({
+    4: { played: 0, won: 0 },
+    5: { played: 0, won: 0 },
+    6: { played: 0, won: 0 },
+    7: { played: 0, won: 0 },
+  });
+  const [showStats, setShowStats] = useState(false);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
+
+  const [inputRefs, setInputRefs] = useState({});
+
+  const [lastTypedLetter, setLastTypedLetter] = useState(null);
+
+  const theme = isDarkMode ? darkTheme : lightTheme;
+
+  useEffect(() => {
+    loadSettings();
+    loadStatistics();
+  }, []);
+
+  useEffect(() => {
+    setHintsRemaining(difficulty - 3);
+  }, [difficulty]);
+
+  const loadSettings = async () => {
+    try {
+      const savedTheme = await AsyncStorage.getItem('theme');
+      const savedColorScheme = await AsyncStorage.getItem('letterColorScheme');
+      const savedDifficulty = await AsyncStorage.getItem('difficulty');
+      
+      if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+      if (savedColorScheme) setLetterColorScheme(savedColorScheme);
+      if (savedDifficulty) setDifficulty(parseInt(savedDifficulty));
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadStatistics = async () => {
+    try {
+      const savedStats = await AsyncStorage.getItem('statistics');
+      if (savedStats) {
+        setStatistics(JSON.parse(savedStats));
+      }
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+    }
+  };
+
+  const saveStatistics = async (newStats) => {
+    try {
+      await AsyncStorage.setItem('statistics', JSON.stringify(newStats));
+    } catch (error) {
+      console.error('Error saving statistics:', error);
+    }
+  };
+
+  const saveSettings = async (key, value) => {
+    try {
+      await AsyncStorage.setItem(key, value.toString());
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
+  };
+
+  const generateCipher = () => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const shuffled = [...alphabet].sort(() => Math.random() - 0.5);
+    const cipher = {};
+    alphabet.forEach((letter, i) => {
+      cipher[letter] = shuffled[i];
+    });
+    return cipher;
+  };
+
+  const encodeWord = (word, cipher) => {
+    return word.split('').map(letter => cipher[letter]).join('');
+  };
+
+  const generateNewPuzzle = (trackStats = true) => {
+    if (trackStats && currentPuzzle && !solved) {
+      if (Object.keys(userMapping).length > 0) {
+        const newStats = { ...statistics };
+        newStats[difficulty].played += 1;
+        setStatistics(newStats);
+        saveStatistics(newStats);
+      }
+    }
+    
+    const categories = Object.keys(wordLists);
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    
+    const availableWords = [...wordLists[category]];
+    const selectedWords = [];
+    for (let i = 0; i < difficulty; i++) {
+      const index = Math.floor(Math.random() * availableWords.length);
+      selectedWords.push(availableWords[index]);
+      availableWords.splice(index, 1);
+    }
+    
+    const cipher = generateCipher();
+    
+    setCurrentPuzzle({
+      category: category.charAt(0).toUpperCase() + category.slice(1),
+      words: selectedWords,
+      encodedWords: selectedWords.map(word => encodeWord(word, cipher)),
+      cipher: cipher,
+      reverseCipher: Object.fromEntries(Object.entries(cipher).map(([k, v]) => [v, k]))
+    });
+    
+    setUserMapping({});
+    setSolved(false);
+    setHintsRemaining(difficulty - 3);
+    setCorrectLetters(new Set());
+    setLastTypedLetter(null);
+  };
+
+  const handleLetterInput = (cipherLetter, value, wordIndex, letterIndex) => {
+    const upperValue = value.toUpperCase();
+    
+    if (value && !/^[A-Z]$/.test(upperValue)) {
+      return;
+    }
+    
+    const newMapping = { ...userMapping };
+    if (upperValue) {
+      newMapping[cipherLetter] = upperValue;
+      setLastTypedLetter(cipherLetter);
+    } else {
+      delete newMapping[cipherLetter];
+    }
+    
+    setUserMapping(newMapping);
+    
+    if (currentPuzzle && upperValue) {
+      // Check each word for completion
+      const newCorrectLetters = new Set(correctLetters);
+      let foundCompleteWord = false;
+      
+      currentPuzzle.encodedWords.forEach((encodedWord, idx) => {
+        const isWordComplete = encodedWord.split('').every(letter => {
+          return newMapping[letter] === currentPuzzle.reverseCipher[letter];
+        });
+        
+        if (isWordComplete) {
+          // Add all letters from this word to correct set
+          encodedWord.split('').forEach(letter => {
+            newCorrectLetters.add(letter);
+          });
+          foundCompleteWord = true;
+        }
+      });
+      
+      if (foundCompleteWord) {
+        setCorrectLetters(newCorrectLetters);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      
+      // Check if entire puzzle is solved
+      const allCorrect = currentPuzzle.encodedWords.every(encodedWord => {
+        return encodedWord.split('').every(letter => {
+          return newMapping[letter] === currentPuzzle.reverseCipher[letter];
+        });
+      });
+      
+      if (allCorrect && !solved) {
+        setSolved(true);
+        const newStats = { ...statistics };
+        newStats[difficulty].played += 1;
+        newStats[difficulty].won += 1;
+        setStatistics(newStats);
+        saveStatistics(newStats);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Congratulations!', 'You solved the puzzle!', [
+          { text: 'Continue', onPress: () => {
+            setShowWelcomeScreen(true);
+            setCurrentPuzzle(null);
+            setUserMapping({});
+            setSolved(false);
+            setCorrectLetters(new Set());
+            setLastTypedLetter(null);
+          }}
+        ]);
+      }
+      
+      // Auto-advance to next empty input
+      if (upperValue) {
+        // Find next empty input
+        let found = false;
+        
+        // Check remaining letters in current word
+        for (let i = letterIndex + 1; i < currentPuzzle.encodedWords[wordIndex].length; i++) {
+          const nextLetter = currentPuzzle.encodedWords[wordIndex][i];
+          if (!newMapping[nextLetter]) {
+            const ref = inputRefs[`${wordIndex}-${i}`];
+            if (ref) {
+              ref.focus();
+              found = true;
+              break;
+            }
+          }
+        }
+        
+        // Check subsequent words
+        if (!found) {
+          for (let w = wordIndex + 1; w < currentPuzzle.encodedWords.length; w++) {
+            for (let l = 0; l < currentPuzzle.encodedWords[w].length; l++) {
+              const nextLetter = currentPuzzle.encodedWords[w][l];
+              if (!newMapping[nextLetter]) {
+                const ref = inputRefs[`${w}-${l}`];
+                if (ref) {
+                  ref.focus();
+                  found = true;
+                  break;
+                }
+              }
+            }
+            if (found) break;
+          }
+        }
+        
+        // Wrap to beginning if needed
+        if (!found) {
+          for (let w = 0; w <= wordIndex; w++) {
+            const maxL = w === wordIndex ? letterIndex : currentPuzzle.encodedWords[w].length;
+            for (let l = 0; l < maxL; l++) {
+              const nextLetter = currentPuzzle.encodedWords[w][l];
+              if (!newMapping[nextLetter]) {
+                const ref = inputRefs[`${w}-${l}`];
+                if (ref) {
+                  ref.focus();
+                  found = true;
+                  break;
+                }
+              }
+            }
+            if (found) break;
+          }
+        }
+      }
+    }
+  };
+
+  const getHint = () => {
+    if (hintsRemaining <= 0 || solved || !currentPuzzle) return;
+    
+    const unmappedLetters = [];
+    currentPuzzle.encodedWords.forEach(word => {
+      word.split('').forEach(letter => {
+        if (!userMapping[letter] && !unmappedLetters.includes(letter)) {
+          unmappedLetters.push(letter);
+        }
+      });
+    });
+    
+    if (unmappedLetters.length === 0) return;
+    
+    const randomLetter = unmappedLetters[Math.floor(Math.random() * unmappedLetters.length)];
+    const correctLetter = currentPuzzle.reverseCipher[randomLetter];
+    
+    // Update the mapping
+    const newMapping = { ...userMapping };
+    newMapping[randomLetter] = correctLetter;
+    setUserMapping(newMapping);
+    
+    // Check if this completes any words
+    const newCorrectLetters = new Set(correctLetters);
+    currentPuzzle.encodedWords.forEach((encodedWord) => {
+      const isWordComplete = encodedWord.split('').every(letter => {
+        return newMapping[letter] === currentPuzzle.reverseCipher[letter];
+      });
+      
+      if (isWordComplete) {
+        encodedWord.split('').forEach(letter => {
+          newCorrectLetters.add(letter);
+        });
+      }
+    });
+    
+    setCorrectLetters(newCorrectLetters);
+    setHintsRemaining(hintsRemaining - 1);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const giveUp = () => {
+    if (!currentPuzzle || solved) return;
+    
+    Alert.alert(
+      'Give Up?',
+      'Are you sure you want to reveal the solution?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Yes, Show Solution', 
+          style: 'destructive',
+          onPress: () => {
+            const newStats = { ...statistics };
+            newStats[difficulty].played += 1;
+            setStatistics(newStats);
+            saveStatistics(newStats);
+            
+            const fullMapping = {};
+            Object.entries(currentPuzzle.reverseCipher).forEach(([cipher, plain]) => {
+              fullMapping[cipher] = plain;
+            });
+            setUserMapping(fullMapping);
+            
+            // Mark all letters as correct since we're revealing the solution
+            const allLetters = new Set();
+            currentPuzzle.encodedWords.forEach(word => {
+              word.split('').forEach(letter => {
+                allLetters.add(letter);
+              });
+            });
+            setCorrectLetters(allLetters);
+            setSolved(true);
+            
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            
+            setTimeout(() => {
+              Alert.alert('Solution Revealed', 'The correct answer has been shown. Try another puzzle!', [
+                { text: 'Continue', onPress: () => {
+                  setShowWelcomeScreen(true);
+                  setCurrentPuzzle(null);
+                  setUserMapping({});
+                  setSolved(false);
+                  setCorrectLetters(new Set());
+                  setLastTypedLetter(null);
+                }}
+              ]);
+            }, 500);
+          }
+        }
+      ]
+    );
+  };
+
+  const undoLastLetter = () => {
+    if (!lastTypedLetter || solved) return;
+    
+    const newMapping = { ...userMapping };
+    delete newMapping[lastTypedLetter];
+    setUserMapping(newMapping);
+    
+    // Check if removing this letter affects any completed words
+    const newCorrectLetters = new Set();
+    currentPuzzle.encodedWords.forEach((encodedWord) => {
+      const isWordComplete = encodedWord.split('').every(letter => {
+        return newMapping[letter] === currentPuzzle.reverseCipher[letter];
+      });
+      
+      if (isWordComplete) {
+        encodedWord.split('').forEach(letter => {
+          newCorrectLetters.add(letter);
+        });
+      }
+    });
+    
+    setCorrectLetters(newCorrectLetters);
+    setLastTypedLetter(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const startNewGame = (selectedDifficulty) => {
+    setDifficulty(selectedDifficulty);
+    setShowWelcomeScreen(false);
+    generateNewPuzzle(false);
+  };
+
+  const getLetterFrequency = () => {
+    if (!currentPuzzle) return {};
+    
+    const frequency = {};
+    currentPuzzle.encodedWords.forEach(word => {
+      word.split('').forEach(letter => {
+        frequency[letter] = (frequency[letter] || 0) + 1;
+      });
+    });
+    
+    return frequency;
+  };
+
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    saveSettings('theme', newTheme ? 'dark' : 'light');
+  };
+
+  const selectColorScheme = (scheme) => {
+    setLetterColorScheme(scheme);
+    saveSettings('letterColorScheme', scheme);
+    setShowSettings(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const selectDifficulty = (newDifficulty) => {
+    setDifficulty(newDifficulty);
+    saveSettings('difficulty', newDifficulty.toString());
+    setShowDifficultyModal(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const renderLetterInput = (letter, wordIndex, letterIndex) => {
+    const isCorrect = correctLetters.has(letter);
+    const colorScheme = colorSchemes[letterColorScheme];
+    
+    return (
+      <View key={`${wordIndex}-${letterIndex}`} style={styles.letterGroup}>
+        <TextInput
+          style={[
+            styles.letterInput,
+            { 
+              backgroundColor: theme.inputBg, 
+              color: theme.text, 
+              borderColor: theme.border,
+              width: letterBoxSize,
+              height: letterBoxSize,
+              fontSize: letterBoxSize > 28 ? 16 : 14,
+            },
+            isCorrect && { 
+              backgroundColor: colorScheme.bg, 
+              color: colorScheme.text,
+              borderColor: colorScheme.bg 
+            }
+          ]}
+          value={userMapping[letter] || ''}
+          onChangeText={(value) => handleLetterInput(letter, value, wordIndex, letterIndex)}
+          maxLength={1}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          ref={ref => {
+            if (ref) {
+              inputRefs[`${wordIndex}-${letterIndex}`] = ref;
+            }
+          }}
+        />
+        <Text style={[styles.cipherLetter, { color: theme.secondaryText }]}>{letter}</Text>
+      </View>
+    );
+  };
+
+  // Welcome Screen
+  if (showWelcomeScreen) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+        
+        <View style={[styles.welcomeHeader, { backgroundColor: theme.headerBg }]}>
+          <Text style={[styles.welcomeTitle, { color: theme.accent }]}>WordShift</Text>
+          <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
+            <Text style={styles.themeIcon}>{isDarkMode ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView 
+          contentContainerStyle={[styles.welcomeContent, { paddingBottom: 40 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.instructionsCard, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.instructionsTitle, { color: theme.text }]}>How to Play</Text>
+            <Text style={[styles.instructionsText, { color: theme.secondaryText }]}>
+              Each puzzle contains words from a category where letters have been replaced with different letters using a simple substitution cipher.
+              {'\n\n'}
+              • The same cipher is used for all the words
+              {'\n'}
+              • Type a letter to fill in all matching positions
+              {'\n'}
+              • Green letters indicate correct guesses
+              {'\n'}
+              • Use hints if you get stuck
+            </Text>
+            <TouchableOpacity 
+              style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+              onPress={() => setShowStats(true)}
+            >
+              <Text style={[styles.smallButtonText, { color: theme.text }]}>📊</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[styles.selectDifficultyText, { color: theme.text }]}>Select Difficulty</Text>
+
+          {[
+            { level: 4, name: 'Easy', desc: '4 words, 1 hint', color: '#2ecc71' },
+            { level: 5, name: 'Medium', desc: '5 words, 2 hints', color: '#f39c12' },
+            { level: 6, name: 'Hard', desc: '6 words, 3 hints', color: '#e74c3c' },
+            { level: 7, name: 'Expert', desc: '7 words, 4 hints', color: '#9b59b6' },
+          ].map(({ level, name, desc, color }) => {
+            const stats = statistics[level];
+            const successRate = stats && stats.played > 0 
+              ? Math.round((stats.won / stats.played) * 100) 
+              : null;
+            
+            return (
+              <TouchableOpacity
+                key={level}
+                style={[styles.difficultyCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
+                onPress={() => startNewGame(level)}
+              >
+                <View style={styles.difficultyCardLeft}>
+                  <Text style={[styles.difficultyName, { color: theme.text }]}>{name}</Text>
+                  <Text style={[styles.difficultyDesc, { color: theme.secondaryText }]}>{desc}</Text>
+                </View>
+                <View style={styles.difficultyCardRight}>
+                  {successRate !== null && (
+                    <Text style={[styles.difficultyStats, { color: color }]}>
+                      {successRate}%
+                    </Text>
+                  )}
+                  <Text style={[styles.playButton, { backgroundColor: color }]}>Play</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+
+          <View style={styles.bottomButtons}>
+            <TouchableOpacity 
+              style={[styles.bottomButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
+              onPress={() => setShowStats(true)}
+            >
+              <Text style={[styles.bottomButtonText, { color: theme.text }]}>📊 Statistics</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.bottomButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
+              onPress={() => setShowSettings(true)}
+            >
+              <Text style={[styles.bottomButtonText, { color: theme.text }]}>⚙️ Settings</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        {/* Settings Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showSettings}
+          onRequestClose={() => setShowSettings(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Letter Color Settings</Text>
+              <View style={styles.colorGrid}>
+                {Object.entries(colorSchemes).map(([name, scheme]) => (
+                  <TouchableOpacity
+                    key={name}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: scheme.bg },
+                      letterColorScheme === name && styles.selectedColor
+                    ]}
+                    onPress={() => selectColorScheme(name)}
+                  >
+                    <Text style={[styles.colorOptionText, { color: scheme.text }]}>
+                      {name.charAt(0).toUpperCase() + name.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity 
+                style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+                onPress={() => setShowSettings(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Statistics Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showStats}
+          onRequestClose={() => setShowStats(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Statistics</Text>
+              <View style={styles.statsContainer}>
+                {[4, 5, 6, 7].map((level) => {
+                  const stats = statistics[level];
+                  const successRate = stats && stats.played > 0 
+                    ? Math.round((stats.won / stats.played) * 100) 
+                    : 0;
+                  const levelName = level === 4 ? 'Easy' : level === 5 ? 'Medium' : level === 6 ? 'Hard' : 'Expert';
+                  
+                  return (
+                    <View key={level} style={[styles.statRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                      <Text style={[styles.statLevelName, { color: theme.text }]}>{levelName}</Text>
+                      <View style={styles.statDetails}>
+                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                          Played: {stats.played}
+                        </Text>
+                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                          Won: {stats.won}
+                        </Text>
+                        <Text style={[styles.statPercentage, { color: theme.accent }]}>
+                          {successRate}%
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <TouchableOpacity 
+                style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+                onPress={() => setShowStats(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    );
+  }
+
+  // Loading State
+  if (!currentPuzzle) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Text style={{ color: theme.text }}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Game Screen
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      
+      <View style={[styles.header, { backgroundColor: theme.headerBg }]}>
+        <Text style={[styles.headerTitle, { color: theme.accent }]}>WordShift</Text>
+        <View style={styles.headerControls}>
+          <TouchableOpacity onPress={() => setShowDifficultyModal(true)} style={styles.difficultyButton}>
+            <Text style={[styles.difficultyButtonText, { color: theme.text }]}>
+              {difficulty === 4 ? 'Easy' : difficulty === 5 ? 'Medium' : difficulty === 6 ? 'Hard' : 'Expert'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.menuButton}
+            onPress={() => {
+              setShowWelcomeScreen(true);
+              setCurrentPuzzle(null);
+              setUserMapping({});
+              setSolved(false);
+            }}
+          >
+            <Text style={[styles.menuButtonText, { color: theme.text }]}>Menu</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
+            <Text style={styles.themeIcon}>{isDarkMode ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.mainContent}
+      >
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Text style={[styles.categoryText, { color: theme.secondaryText }]}>
+            Category: {currentPuzzle.category}
+          </Text>
+
+          {solved && (
+            <Text style={[styles.successMessage, { color: theme.success }]}>
+              🎉 Congratulations! You solved it! 🎉
+            </Text>
+          )}
+
+          <View style={[styles.puzzleContainer, { backgroundColor: theme.cardBg }]}>
+            {currentPuzzle.encodedWords.map((word, wordIndex) => (
+              <View key={wordIndex} style={styles.wordRow}>
+                {word.split('').map((letter, letterIndex) => 
+                  renderLetterInput(letter, wordIndex, letterIndex)
+                )}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.controlsPanel}>
+            <TouchableOpacity 
+              style={[styles.button, styles.primaryButton, { backgroundColor: theme.accent }]} 
+              onPress={() => generateNewPuzzle()}
+            >
+              <Text style={styles.buttonText}>New Puzzle</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.button, styles.secondaryButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+              onPress={getHint}
+              disabled={hintsRemaining === 0}
+            >
+              <Text style={[styles.buttonText, { color: theme.text }]}>Hint ({hintsRemaining})</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.button, styles.secondaryButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+              onPress={giveUp}
+              disabled={solved}
+            >
+              <Text style={[styles.buttonText, { color: theme.text }]}>Give Up</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.smallButtonsRow}>
+            <TouchableOpacity 
+              style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+              onPress={() => setShowFrequency(!showFrequency)}
+            >
+              <Text style={[styles.smallButtonText, { color: theme.text }]}>Freq</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+              onPress={() => setShowSettings(true)}
+            >
+              <Text style={[styles.smallButtonText, { color: theme.text }]}>⚙️</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+              onPress={undoLastLetter}
+              disabled={!lastTypedLetter || solved}
+            >
+              <Text style={[styles.smallButtonText, { color: theme.text }]}>↶</Text>
+            </TouchableOpacity>
+          </View>
+
+          {showFrequency && (
+            <View style={[styles.frequencyContainer, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.frequencyTitle, { color: theme.secondaryText }]}>Letter Frequency</Text>
+              <View style={styles.frequencyGrid}>
+                {Object.entries(getLetterFrequency())
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([letter, count]) => (
+                    <View key={letter} style={[styles.frequencyItem, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                      <Text style={[styles.frequencyLetter, { color: theme.accent }]}>{letter}</Text>
+                      <Text style={[styles.frequencyCount, { color: theme.secondaryText }]}>{count}</Text>
+                    </View>
+                  ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Settings Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showSettings}
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Letter Color Settings</Text>
+            <View style={styles.colorGrid}>
+              {Object.entries(colorSchemes).map(([name, scheme]) => (
+                <TouchableOpacity
+                  key={name}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: scheme.bg },
+                    letterColorScheme === name && styles.selectedColor
+                  ]}
+                  onPress={() => selectColorScheme(name)}
+                >
+                  <Text style={[styles.colorOptionText, { color: scheme.text }]}>
+                    {name.charAt(0).toUpperCase() + name.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity 
+              style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+              onPress={() => setShowSettings(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Difficulty Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showDifficultyModal}
+        onRequestClose={() => setShowDifficultyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Difficulty</Text>
+            {[
+              { level: 4, name: 'Easy', desc: '4 words, 1 hint' },
+              { level: 5, name: 'Medium', desc: '5 words, 2 hints' },
+              { level: 6, name: 'Hard', desc: '6 words, 3 hints' },
+              { level: 7, name: 'Expert', desc: '7 words, 4 hints' },
+            ].map(({ level, name, desc }) => (
+              <TouchableOpacity
+                key={level}
+                style={[
+                  styles.difficultyOption,
+                  { backgroundColor: theme.background, borderColor: theme.border },
+                  difficulty === level && { backgroundColor: theme.accent }
+                ]}
+                onPress={() => selectDifficulty(level)}
+              >
+                <Text style={[
+                  styles.difficultyOptionTitle,
+                  { color: difficulty === level ? '#fff' : theme.text }
+                ]}>
+                  {name}
+                </Text>
+                <Text style={[
+                  styles.difficultyOptionDesc,
+                  { color: difficulty === level ? '#fff' : theme.secondaryText }
+                ]}>
+                  {desc}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity 
+              style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+              onPress={() => setShowDifficultyModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Statistics Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showStats}
+        onRequestClose={() => setShowStats(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Statistics</Text>
+            <View style={styles.statsContainer}>
+              {[4, 5, 6, 7].map((level) => {
+                const stats = statistics[level];
+                const successRate = stats && stats.played > 0 
+                  ? Math.round((stats.won / stats.played) * 100) 
+                  : 0;
+                const levelName = level === 4 ? 'Easy' : level === 5 ? 'Medium' : level === 6 ? 'Hard' : 'Expert';
+                
+                return (
+                  <View key={level} style={[styles.statRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                    <Text style={[styles.statLevelName, { color: theme.text }]}>{levelName}</Text>
+                    <View style={styles.statDetails}>
+                      <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                        Played: {stats.played}
+                      </Text>
+                      <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                        Won: {stats.won}
+                      </Text>
+                      <Text style={[styles.statPercentage, { color: theme.accent }]}>
+                        {successRate}%
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <TouchableOpacity 
+              style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+              onPress={() => setShowStats(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Avenir-Black' : 'sans-serif-black',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  difficultyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  difficultyButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  themeButton: {
+    padding: 5,
+  },
+  themeIcon: {
+    fontSize: 24,
+  },
+  mainContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  categoryText: {
+    textAlign: 'center',
+    fontSize: 16,
+    marginTop: 15,
+    marginBottom: 8,
+  },
+  successMessage: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginVertical: 10,
+  },
+  puzzleContainer: {
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 15,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  wordRow: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    justifyContent: 'center',
+    marginBottom: 12,
+    gap: 4,
+  },
+  letterGroup: {
+    alignItems: 'center',
+  },
+  letterInput: {
+    width: 32,
+    height: 32,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderRadius: 4,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  cipherLetter: {
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  controlsPanel: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  button: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  primaryButton: {
+    backgroundColor: '#3498db',
+  },
+  secondaryButton: {
+    borderWidth: 1,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  smallButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  smallButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  smallButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  frequencyContainer: {
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  frequencyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  frequencyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  frequencyItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  frequencyLetter: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  frequencyCount: {
+    fontSize: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 10,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  colorOption: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  selectedColor: {
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  colorOptionText: {
+    fontWeight: '600',
+  },
+  closeButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  difficultyOption: {
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  difficultyOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  difficultyOptionDesc: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  statsContainer: {
+    marginBottom: 20,
+  },
+  statRow: {
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  statLevelName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  statDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statText: {
+    fontSize: 14,
+  },
+  statPercentage: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  welcomeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  welcomeTitle: {
+    fontSize: 42,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Avenir-Black' : 'sans-serif-black',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 3, height: 3 },
+    textShadowRadius: 6,
+    textTransform: 'uppercase',
+  },
+  welcomeContent: {
+    padding: 20,
+    flexGrow: 1,
+  },
+  instructionsCard: {
+    padding: 20,
+    borderRadius: 10,
+    marginBottom: 25,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  instructionsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  instructionsText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  selectDifficultyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  difficultyCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  difficultyCardLeft: {
+    flex: 1,
+  },
+  difficultyCardRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  difficultyName: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  difficultyDesc: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  difficultyStats: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  playButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  bottomButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 30,
+  },
+  bottomButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  bottomButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  menuButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginLeft: 5,
+  },
+  menuButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
