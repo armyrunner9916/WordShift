@@ -1595,7 +1595,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-});>
+});
         </View>
 
         {/* Settings Modal */}
@@ -1970,4 +1970,17 @@ const styles = StyleSheet.create({
           alignItems: 'center' 
         }
       ]}>
-        <Text style={{ color: '#999', fontSize: isTablet ? 16 : 12 }}>Ad Banner Space</Text
+        <Text style={{ color: '#999', fontSize: isTablet ? 16 : 12 }}>Ad Banner Space</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  );
+}
+
