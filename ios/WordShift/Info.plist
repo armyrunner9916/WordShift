@@ -27,23 +27,12 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>wordshift</string>
           <string>com.steveomatic.wordshift</string>
-        </array>
-      </dict>
-      <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>exp+wordshift</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>3</string>
-    <key>GADApplicationIdentifier</key>
-    <string>ca-app-pub-7368779159802085~7370758902</string>
-    <key>GADDelayAppMeasurementInit</key>
-    <false/>
+    <string>1</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
