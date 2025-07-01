@@ -1,9 +1,8 @@
-// TEMPORARY VERSION FOR SCREENSHOTS - AdMob and IAP commented out
-// Uncomment these features before your production build!
+// AD-SUPPORTED VERSION - AdMob enabled, IAP removed
+// This version includes ads but no in-app purchases
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-// import * as InAppPurchases from 'expo-in-app-purchases';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -11,7 +10,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -23,90 +21,138 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-// import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
-// AdMob Banner ID - COMMENTED OUT FOR SCREENSHOTS
-// const adUnitId = __DEV__ 
-//   ? TestIds.BANNER 
-//   : Platform.OS === 'ios' 
-//     ? 'ca-app-pub-7368779159802085/1234567890' 
-//     : 'ca-app-pub-7368779159802085/0987654321';
+// Google Mobile Ads - PROPERLY FIXED VERSION
+import MobileAds, { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
-// In-App Purchase Product ID
-const REMOVE_ADS_PRODUCT_ID = Platform.OS === 'ios' 
-  ? 'com.steveomatic.wordshift.removeads' 
-  : 'remove_ads';
+// Initialize immediately for iOS to prevent crashes
+if (Platform.OS === 'ios') {
+  MobileAds().initialize().catch((error) => {
+    console.warn('Failed to initialize Google Mobile Ads:', error);
+  });
+}
 
-// Storage wrapper to handle Expo Go anonymous mode
+let adUnitId: string = '';
+let isAdMobAvailable = false;
+
+// Initialize Google Mobile Ads with proper error handling (iOS only)
+const initializeAdMob = async () => {
+  try {
+    if (Platform.OS === 'ios') {
+      console.log('Checking Google Mobile Ads initialization...');
+      
+      // Set ad unit ID
+      if (!__DEV__) {
+        adUnitId = 'ca-app-pub-7368779159802085/3638014569';
+      } else {
+        // Use test ad ID for development
+        adUnitId = TestIds.BANNER;
+      }
+      
+      isAdMobAvailable = true;
+      console.log('Google Mobile Ads ready');
+    } else {
+      console.log('Android platform detected - no ads (paid version)');
+      isAdMobAvailable = false;
+    }
+  } catch (error) {
+    console.warn('Failed to setup Google Mobile Ads:', error);
+    isAdMobAvailable = false;
+    adUnitId = '';
+  }
+};
+
+// Storage wrapper to handle Expo Go anonymous mode - IMPROVED VERSION
 const Storage = {
   async getItem(key: string): Promise<string | null> {
     try {
-      return await AsyncStorage.getItem(key);
+      const value = await AsyncStorage.getItem(key);
+      console.log(`Storage getItem success for ${key}:`, value ? 'Found' : 'Not found');
+      return value;
     } catch (error) {
+      console.warn(`Storage getItem error for ${key}:`, error);
+      
+      // Fallback to temp storage in development
       if (__DEV__) {
-        return (global as any).__tempStorage?.[key] || null;
+        const tempValue = (global as any).__tempStorage?.[key] || null;
+        console.log(`Using temp storage fallback for ${key}:`, tempValue ? 'Found' : 'Not found');
+        return tempValue;
       }
-      throw error;
+      
+      // Always return null on error to prevent undefined behavior
+      return null;
     }
   },
   
   async setItem(key: string, value: string): Promise<void> {
     try {
       await AsyncStorage.setItem(key, value);
+      console.log(`Storage setItem success for ${key}`);
     } catch (error) {
+      console.warn(`Storage setItem error for ${key}:`, error);
+      
+      // Fallback to temp storage in development
       if (__DEV__) {
         if (!(global as any).__tempStorage) {
           (global as any).__tempStorage = {};
         }
         (global as any).__tempStorage[key] = value;
-        return;
+        console.log(`Saved to temp storage fallback for ${key}`);
       }
-      throw error;
+      // Note: We don't throw the error, just log it
     }
   }
 };
 
-// Calculate optimal letter box size based on screen width
-const calculateLetterBoxSize = () => {
-  const { width: screenWidth } = Dimensions.get('window');
-  const maxWordLength = 10;
-  const horizontalPadding = 40;
-  const gapSize = 4;
-  const availableWidth = screenWidth - horizontalPadding;
-  const maxBoxSize = Math.floor((availableWidth - (maxWordLength * gapSize)) / maxWordLength);
-  // Increased size for iPad
-  const isTablet = screenWidth >= 768;
-  return Math.min(maxBoxSize, isTablet ? 48 : 32);
-};
-
-const letterBoxSize = calculateLetterBoxSize();
-
-// Enhanced word lists with at least 15 words per category
+// Enhanced word lists with exactly 20 words per category
 const wordLists = {
-  fruits: ['APPLE', 'BANANA', 'CHERRY', 'ORANGE', 'MANGO', 'GRAPE', 'LEMON', 'PEACH', 'PLUM', 'KIWI', 'MELON', 'PAPAYA', 'COCONUT', 'APRICOT', 'PINEAPPLE', 'STRAWBERRY', 'BLUEBERRY', 'FIG', 'GUAVA', 'LYCHEE'],
+  fruits: ['APPLE', 'BANANA', 'CHERRY', 'ORANGE', 'MANGO', 'GRAPE', 'LEMON', 'PEACH', 'PLUM', 'KIWI', 'MELON', 'PAPAYA', 'COCONUT', 'APRICOT', 'PINEAPPLE', 'STRAWBERRY', 'BLUEBERRY', 'GUAVA', 'LYCHEE', 'PEAR'],
+  
   vegetables: ['CARROT', 'POTATO', 'TOMATO', 'ONION', 'PEPPER', 'CELERY', 'LETTUCE', 'CUCUMBER', 'SPINACH', 'CABBAGE', 'GARLIC', 'RADISH', 'BROCCOLI', 'CORN', 'PUMPKIN', 'EGGPLANT', 'ASPARAGUS', 'TURNIP', 'SQUASH', 'ZUCCHINI'],
-  animals: ['TIGER', 'EAGLE', 'RABBIT', 'DOLPHIN', 'MONKEY', 'GIRAFFE', 'PENGUIN', 'OCTOPUS', 'ZEBRA', 'TURTLE', 'ELEPHANT', 'KANGAROO', 'LEOPARD', 'WHALE', 'SNAKE', 'PARROT', 'HAMSTER', 'BEAR', 'FOX', 'LION'],
-  professions: ['DOCTOR', 'TEACHER', 'ARTIST', 'PILOT', 'CHEF', 'NURSE', 'LAWYER', 'DENTIST', 'AUTHOR', 'FARMER', 'BANKER', 'ACTOR', 'SINGER', 'DANCER', 'ATHLETE', 'ENGINEER', 'SCIENTIST', 'VETERINARIAN', 'PHARMACIST', 'MECHANIC'],
+  
+  animals: ['TIGER', 'EAGLE', 'RABBIT', 'DOLPHIN', 'MONKEY', 'GIRAFFE', 'PENGUIN', 'OCTOPUS', 'ZEBRA', 'TURTLE', 'ELEPHANT', 'KANGAROO', 'LEOPARD', 'WHALE', 'SNAKE', 'PARROT', 'HAMSTER', 'BEAR', 'LION', 'HORSE'],
+  
+  professions: ['DOCTOR', 'TEACHER', 'ARTIST', 'PILOT', 'CHEF', 'NURSE', 'LAWYER', 'DENTIST', 'AUTHOR', 'FARMER', 'BANKER', 'ACTOR', 'SINGER', 'DANCER', 'ATHLETE', 'ENGINEER', 'SCIENTIST', 'PHARMACIST', 'MECHANIC', 'THERAPIST'],
+  
   countries: ['FRANCE', 'BRAZIL', 'CANADA', 'MEXICO', 'INDIA', 'EGYPT', 'SWEDEN', 'TURKEY', 'POLAND', 'GREECE', 'NORWAY', 'VIETNAM', 'SPAIN', 'GERMANY', 'JAPAN', 'ICELAND', 'MOROCCO', 'ARGENTINA', 'CHILE', 'THAILAND'],
+  
   sports: ['SOCCER', 'TENNIS', 'SKIING', 'BOXING', 'GOLF', 'HOCKEY', 'RUGBY', 'CYCLING', 'ARCHERY', 'FENCING', 'ROWING', 'SURFING', 'BASEBALL', 'BOWLING', 'SWIMMING', 'RUNNING', 'KARATE', 'WRESTLING', 'CRICKET', 'DIVING'],
+  
   kitchen: ['KNIFE', 'SPOON', 'PLATE', 'BOWL', 'FORK', 'STOVE', 'OVEN', 'MIXER', 'TIMER', 'SCALE', 'PANTRY', 'FREEZER', 'BLENDER', 'TOASTER', 'GRIDDLE', 'SKILLET', 'WHISK', 'SPATULA', 'TONGS', 'KETTLE'],
+  
   weather: ['SUNNY', 'CLOUDY', 'STORM', 'WINDY', 'FOGGY', 'SNOW', 'RAIN', 'THUNDER', 'HUMID', 'BREEZE', 'DRIZZLE', 'TORNADO', 'FROST', 'HAIL', 'SLEET', 'DROUGHT', 'RAINBOW', 'MISTY', 'CHILLY', 'OVERCAST'],
-  emotions: ['HAPPY', 'EXCITED', 'NERVOUS', 'ANGRY', 'PROUD', 'LONELY', 'BRAVE', 'CURIOUS', 'JEALOUS', 'PEACEFUL', 'GRATEFUL', 'WORRIED', 'CONFUSED', 'HOPEFUL', 'FEARFUL', 'JOYFUL', 'ANXIOUS', 'SAD', 'RELIEVED', 'SURPRISED'],
-  transportation: ['PLANE', 'TRAIN', 'BICYCLE', 'SUBWAY', 'FERRY', 'ROCKET', 'SCOOTER', 'YACHT', 'TAXI', 'TRUCK', 'CANOE', 'TRAM', 'HELICOPTER', 'MOTORCYCLE', 'SKATEBOARD', 'SAILBOAT', 'BALLOON', 'CAR', 'BUS', 'JET'],
+  
+  emotions: ['HAPPY', 'EXCITED', 'NERVOUS', 'ANGRY', 'PROUD', 'LONELY', 'BRAVE', 'CURIOUS', 'JEALOUS', 'PEACEFUL', 'GRATEFUL', 'WORRIED', 'CONFUSED', 'HOPEFUL', 'FEARFUL', 'JOYFUL', 'ANXIOUS', 'RELIEVED', 'SURPRISED', 'CONTENT'],
+  
+  transportation: ['PLANE', 'TRAIN', 'BICYCLE', 'SUBWAY', 'FERRY', 'ROCKET', 'SCOOTER', 'YACHT', 'TAXI', 'TRUCK', 'CANOE', 'TRAM', 'HELICOPTER', 'MOTORCYCLE', 'SKATEBOARD', 'SAILBOAT', 'BALLOON', 'BOAT', 'SHIP', 'KAYAK'],
+  
   instruments: ['PIANO', 'GUITAR', 'VIOLIN', 'TRUMPET', 'DRUMS', 'FLUTE', 'HARP', 'CELLO', 'OBOE', 'BANJO', 'ORGAN', 'TUBA', 'CLARINET', 'SAXOPHONE', 'UKULELE', 'ACCORDION', 'XYLOPHONE', 'BONGO', 'TAMBOURINE', 'MARIMBA'],
-  clothing: ['SHIRT', 'JACKET', 'GLOVES', 'SCARF', 'BOOTS', 'SWEATER', 'SOCKS', 'BELT', 'HAT', 'COAT', 'DRESS', 'JEANS', 'SHORTS', 'PAJAMAS', 'UNIFORM', 'SANDALS', 'MITTENS', 'TIE', 'VEST', 'HOODIE'],
+  
+  clothing: ['SHIRT', 'JACKET', 'GLOVES', 'SCARF', 'BOOTS', 'SWEATER', 'SOCKS', 'BELT', 'COAT', 'DRESS', 'JEANS', 'SHORTS', 'PAJAMAS', 'UNIFORM', 'SANDALS', 'MITTENS', 'VEST', 'HOODIE', 'SKIRT', 'BLOUSE'],
+  
   technology: ['COMPUTER', 'PHONE', 'TABLET', 'CAMERA', 'PRINTER', 'MONITOR', 'KEYBOARD', 'MOUSE', 'SPEAKER', 'ROUTER', 'LAPTOP', 'HEADPHONES', 'MICROPHONE', 'SCANNER', 'PROJECTOR', 'WEBCAM', 'CHARGER', 'CONSOLE', 'DRONE', 'SERVER'],
-  furniture: ['CHAIR', 'TABLE', 'COUCH', 'DESK', 'LAMP', 'SHELF', 'DRESSER', 'MIRROR', 'CABINET', 'STOOL', 'BENCH', 'OTTOMAN', 'BOOKCASE', 'WARDROBE', 'NIGHTSTAND', 'RECLINER', 'MATTRESS', 'ARMCHAIR', 'VANITY', 'COT'],
-  hobbies: ['READING', 'GAMING', 'HIKING', 'PAINTING', 'DANCING', 'SINGING', 'WRITING', 'FISHING', 'COOKING', 'KNITTING', 'CAMPING', 'DRAWING', 'COLLECTING', 'PHOTOGRAPHY', 'GARDENING', 'TRAVELING', 'BAKING', 'SEWING', 'BIRDING', 'JUGGLING'],
+  
+  furniture: ['CHAIR', 'TABLE', 'COUCH', 'DESK', 'LAMP', 'SHELF', 'DRESSER', 'MIRROR', 'CABINET', 'STOOL', 'BENCH', 'OTTOMAN', 'BOOKCASE', 'WARDROBE', 'NIGHTSTAND', 'RECLINER', 'MATTRESS', 'ARMCHAIR', 'VANITY', 'SOFA'],
+  
+  hobbies: ['READING', 'GAMING', 'HIKING', 'PAINTING', 'DANCING', 'SINGING', 'WRITING', 'FISHING', 'COOKING', 'KNITTING', 'CAMPING', 'DRAWING', 'COLLECTING', 'GARDENING', 'TRAVELING', 'BAKING', 'SEWING', 'YOGA', 'JUGGLING', 'BIKING'],
+  
   school: ['PENCIL', 'NOTEBOOK', 'BACKPACK', 'ERASER', 'RULER', 'TEXTBOOK', 'CLASSROOM', 'TEACHER', 'STUDENT', 'LIBRARY', 'CAFETERIA', 'HOMEWORK', 'EXAM', 'DIPLOMA', 'PRINCIPAL', 'SCIENCE', 'HISTORY', 'CHALKBOARD', 'MARKER', 'QUIZ'],
-  colors: ['PURPLE', 'ORANGE', 'YELLOW', 'GREEN', 'BLUE', 'RED', 'PINK', 'BROWN', 'BLACK', 'WHITE', 'GRAY', 'SILVER', 'GOLD', 'MAROON', 'TURQUOISE', 'MAGENTA', 'CRIMSON', 'BEIGE', 'CYAN', 'LAVENDER'],
-  drinks: ['WATER', 'COFFEE', 'TEA', 'JUICE', 'MILK', 'SODA', 'LEMONADE', 'SMOOTHIE', 'COCOA', 'CIDER', 'SHAKE', 'PUNCH', 'ESPRESSO', 'CAPPUCCINO', 'CHAMPAGNE', 'MILKSHAKE', 'HERBAL', 'MOCHA', 'ENERGY', 'TONIC'],
+  
+  colors: ['PURPLE', 'ORANGE', 'YELLOW', 'GREEN', 'BLUE', 'PINK', 'BROWN', 'BLACK', 'WHITE', 'GRAY', 'SILVER', 'GOLD', 'MAROON', 'TURQUOISE', 'MAGENTA', 'CRIMSON', 'BEIGE', 'CYAN', 'LAVENDER', 'INDIGO'],
+  
+  drinks: ['WATER', 'COFFEE', 'JUICE', 'MILK', 'SODA', 'LEMONADE', 'SMOOTHIE', 'COCOA', 'CIDER', 'SHAKE', 'PUNCH', 'ESPRESSO', 'CAPPUCCINO', 'CHAMPAGNE', 'MILKSHAKE', 'HERBAL', 'MOCHA', 'ENERGY', 'TONIC', 'LATTE'],
+  
   desserts: ['CAKE', 'COOKIE', 'BROWNIE', 'PUDDING', 'CUPCAKE', 'DONUT', 'MUFFIN', 'PASTRY', 'CANDY', 'CHOCOLATE', 'FUDGE', 'TRUFFLE', 'TART', 'SUNDAE', 'CHEESECAKE', 'MOUSSE', 'SORBET', 'MACARON', 'ICECREAM', 'CANNOLI'],
-  tools: ['HAMMER', 'SCREWDRIVER', 'WRENCH', 'PLIERS', 'DRILL', 'SAW', 'LEVEL', 'CHISEL', 'CLAMP', 'RULER', 'SANDER', 'SHOVEL', 'LADDER', 'TOOLBOX', 'CROWBAR', 'SCISSORS', 'GRINDER', 'TROWEL', 'MALLET', 'FILE'],
-  body_parts: ['HEAD', 'ARM', 'LEG', 'HAND', 'FOOT', 'EYE', 'EAR', 'NOSE', 'MOUTH', 'TOOTH', 'KNEE', 'ELBOW', 'NECK', 'BACK', 'CHEST', 'FINGER', 'WRIST', 'ANKLE', 'THUMB', 'SHOULDER'],
+  
+  tools: ['HAMMER', 'WRENCH', 'PLIERS', 'DRILL', 'LEVEL', 'CHISEL', 'CLAMP', 'RULER', 'SANDER', 'SHOVEL', 'LADDER', 'TOOLBOX', 'CROWBAR', 'SCISSORS', 'GRINDER', 'TROWEL', 'MALLET', 'FILE', 'HACKSAW', 'VISE'],
+  
+  'Body Parts': ['HEAD', 'HAND', 'FOOT', 'KNEE', 'ELBOW', 'NECK', 'BACK', 'CHEST', 'FINGER', 'WRIST', 'ANKLE', 'THUMB', 'SHOULDER', 'TOOTH', 'STOMACH', 'THIGH', 'SHIN', 'SPINE', 'PALM', 'HEEL'],
+  
   buildings: ['HOUSE', 'SCHOOL', 'HOSPITAL', 'CHURCH', 'BANK', 'STORE', 'MUSEUM', 'THEATER', 'STADIUM', 'LIBRARY', 'AIRPORT', 'CASTLE', 'PALACE', 'HOTEL', 'FACTORY', 'WAREHOUSE', 'APARTMENT', 'CABIN', 'DORM', 'SKYSCRAPER'],
-  occupations: ['PLUMBER', 'MECHANIC', 'FIREFIGHTER', 'POLICE', 'JUDGE', 'BARBER', 'SCIENTIST', 'WRITER', 'CHEF', 'PHOTOGRAPHER', 'PHARMACIST', 'ACTOR', 'NURSE', 'VETERINARIAN', 'COACH', 'MUSICIAN', 'ARCHITECT', 'PROGRAMMER', 'DIRECTOR', 'JANITOR'],
-  actions: ['RUN', 'JUMP', 'SWIM', 'CLIMB', 'DANCE', 'READ', 'WRITE', 'SING', 'DRAW', 'COOK', 'LAUGH', 'CRY', 'SLEEP', 'EAT', 'DRINK', 'THROW', 'CATCH', 'BUILD', 'BREAK', 'FIX']
+  
+  occupations: ['PLUMBER', 'MECHANIC', 'POLICE', 'JUDGE', 'BARBER', 'SCIENTIST', 'WRITER', 'CHEF', 'ACTOR', 'NURSE', 'COACH', 'MUSICIAN', 'ARCHITECT', 'PROGRAMMER', 'DIRECTOR', 'JANITOR', 'BAKER', 'TAILOR', 'SURGEON', 'CLERK'],
+  
+  actions: ['JUMP', 'SWIM', 'CLIMB', 'DANCE', 'READ', 'WRITE', 'SING', 'DRAW', 'COOK', 'LAUGH', 'SLEEP', 'DRINK', 'THROW', 'CATCH', 'BUILD', 'BREAK', 'WALK', 'TALK', 'THINK', 'PLAY']
 };
 
 // Color schemes for letter backgrounds with high contrast text
@@ -114,7 +160,7 @@ const colorSchemes = {
   black: { bg: '#000000', text: '#ffffff' },
   white: { bg: '#ffffff', text: '#000000' },
   red: { bg: '#dc143c', text: '#ffffff' },
-  orange: { bg: '#ff8c00', text: '#000000' },
+  orange: { bg: '#ff8c00', text: '#ffffff' },
   yellow: { bg: '#ffd700', text: '#000000' },
   green: { bg: '#228b22', text: '#ffffff' },
   blue: { bg: '#0000cd', text: '#ffffff' },
@@ -144,7 +190,7 @@ const darkTheme = {
   accent: '#5dade2',
   success: '#58d68d',
   border: '#444444',
-  inputBg: '#1a1a1a',
+  inputBg: '#3a3a3a',
 };
 
 // Type definitions
@@ -170,6 +216,478 @@ interface ErrorBoundaryState {
 interface ErrorBoundaryProps {
   children: React.ReactNode;
 }
+
+// Styles defined BEFORE components
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Avenir-Black' : 'sans-serif-black',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+    flex: 1,
+    textAlign: 'center',
+    marginRight: -80,
+  },
+  headerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 10,
+  },
+  difficultyDisplay: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 60,
+  },
+  difficultyDisplayText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  themeButton: {
+    padding: 8,
+    borderRadius: 6,
+    marginLeft: 'auto',
+    zIndex: 10,
+  },
+  themeIcon: {
+    fontSize: 24,
+  },
+  mainContent: {
+    flex: 1,
+    paddingHorizontal: 10,
+  },
+  categoryText: {
+    textAlign: 'center',
+    fontSize: 16,
+    marginTop: 15,
+    marginBottom: 8,
+  },
+  successMessage: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginVertical: 10,
+  },
+  puzzleContainer: {
+    padding: 10,
+    borderRadius: 10,
+    marginVertical: 15,
+    marginHorizontal: 5,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  wordRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 12,
+    gap: 4,
+    paddingHorizontal: 5,
+  },
+  letterGroup: {
+    alignItems: 'center',
+  },
+  letterInput: {
+    width: 32,
+    height: 32,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderRadius: 4,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+    textAlignVertical: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  cipherLetter: {
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  controlsPanel: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  button: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  primaryButton: {
+    backgroundColor: '#3498db',
+  },
+  secondaryButton: {
+    borderWidth: 1,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  smallButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  smallButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  smallButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  frequencyContainer: {
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    maxHeight: 200,
+  },
+  frequencyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  frequencyScrollView: {
+    maxHeight: 150,
+  },
+  frequencyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  frequencyItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  frequencyLetter: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  frequencyCount: {
+    fontSize: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 10,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    maxWidth: 500,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  colorOption: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  selectedColor: {
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  colorOptionText: {
+    fontWeight: '600',
+  },
+  closeButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  difficultyOption: {
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  difficultyOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  difficultyOptionDesc: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  statsContainer: {
+    marginBottom: 20,
+  },
+  statRow: {
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  statLevelName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  statDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statText: {
+    fontSize: 14,
+  },
+  statPercentage: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  welcomeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  welcomeTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  welcomeContent: {
+    padding: 15,
+    flexGrow: 1,
+    paddingBottom: 80,
+  },
+  instructionsCard: {
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  instructionsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  instructionsText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  selectDifficultyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  difficultyCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  difficultyCardLeft: {
+    flex: 1,
+  },
+  difficultyCardRight: {
+    alignItems: 'flex-end',
+  },
+  difficultyName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  difficultyDesc: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  difficultyStats: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  playButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 6,
+    color: 'white',
+    fontWeight: '600',
+  },
+  bottomButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 20,
+  },
+  bottomButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  bottomButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  errorButton: {
+    backgroundColor: '#3498db',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  patternStreakContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginVertical: 8,
+    alignSelf: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  patternStreakText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  patternPointsText: {
+    color: '#ffffff',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 2,
+    opacity: 0.9,
+  },
+  bonusAnimationContainer: {
+    position: 'absolute',
+    top: 100,
+    alignSelf: 'center',
+    zIndex: 1000,
+  },
+  bonusAnimationText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  settingsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  adContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+  },
+});
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -233,31 +751,80 @@ function AppContent() {
   const [patternStreak, setPatternStreak] = useState(0);
   const [totalPatternPoints, setTotalPatternPoints] = useState(0);
   const [showPatternBonusAnimation, setShowPatternBonusAnimation] = useState(false);
-  const [adsRemoved, setAdsRemoved] = useState(false); // Always false for screenshots
-  const [isPurchasing, setIsPurchasing] = useState(false);
 
   const inputRefs = useRef<Record<string, TextInput>>({});
 
   const theme = isDarkMode ? darkTheme : lightTheme;
 
+  // Updated hint system based on difficulty
+  const getInitialHints = (level: number) => {
+    switch(level) {
+      case 4: // Easy
+      case 5: // Medium
+        return 3;
+      case 6: // Hard
+        return 2;
+      case 7: // Expert
+        return 1;
+      default:
+        return 3;
+    }
+  };
+
+  // Calculate optimal letter box size based on screen width
+  const calculateLetterBoxSize = useCallback(() => {
+    const { width: screenWidth } = Dimensions.get('window');
+    const maxWordLength = 10;
+    const horizontalPadding = 30;
+    const gapSize = 4;
+    const availableWidth = screenWidth - horizontalPadding;
+    const maxBoxSize = Math.floor((availableWidth - (maxWordLength * gapSize)) / maxWordLength);
+    const isTablet = screenWidth >= 768;
+    return Math.min(maxBoxSize, isTablet ? 48 : 30);
+  }, []);
+
+  const [letterBoxSize, setLetterBoxSize] = useState(calculateLetterBoxSize());
+
   useEffect(() => {
-    loadSettings();
-    loadStatistics();
-    // initializeIAP(); // COMMENTED OUT FOR SCREENSHOTS
+    const updateLetterBoxSize = () => {
+      setLetterBoxSize(calculateLetterBoxSize());
+    };
+
+    const subscription = Dimensions.addEventListener('change', updateLetterBoxSize);
+    return () => subscription?.remove();
+  }, [calculateLetterBoxSize]);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        console.log('Starting app initialization...');
+        
+        // Initialize AdMob first (iOS only)
+        await initializeAdMob();
+        
+        // Load settings
+        await loadSettings();
+        await loadStatistics();
+        
+        console.log('App initialization complete');
+      } catch (error) {
+        console.error('Error during app initialization:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeApp();
   }, []);
 
   useEffect(() => {
     if (!isLoading) {
-      // Hide splash screen after loading
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(console.warn);
     }
   }, [isLoading]);
 
   useEffect(() => {
-    setHintsRemaining(difficulty - 3);
-    if (difficulty === 7) {
-      setHintsRemaining(3);
-    }
+    setHintsRemaining(getInitialHints(difficulty));
   }, [difficulty]);
 
   useEffect(() => {
@@ -272,23 +839,23 @@ function AppContent() {
       const [savedTheme, savedColorScheme, savedDifficulty] = await Promise.all([
         Storage.getItem('theme'),
         Storage.getItem('letterColorScheme'),
-        Storage.getItem('difficulty'),
-        // Storage.getItem('adsRemoved') // COMMENTED OUT
+        Storage.getItem('difficulty')
       ]);
       
       if (savedTheme) setIsDarkMode(savedTheme === 'dark');
-      if (savedColorScheme) setLetterColorScheme(savedColorScheme);
+      if (savedColorScheme && colorSchemes[savedColorScheme as keyof typeof colorSchemes]) {
+        setLetterColorScheme(savedColorScheme);
+      } else {
+        setLetterColorScheme('green');
+      }
       if (savedDifficulty) setDifficulty(parseInt(savedDifficulty));
-      // setAdsRemoved(false); // Always false for screenshots
+      
+      console.log('Settings loaded successfully');
     } catch (error) {
       console.warn('Error loading settings:', error);
       setIsDarkMode(false);
       setLetterColorScheme('green');
       setDifficulty(6);
-      setAdsRemoved(false);
-    } finally {
-      console.log('Settings loaded, setting isLoading to false');
-      setIsLoading(false);
     }
   };
 
@@ -301,36 +868,6 @@ function AppContent() {
     } catch (error) {
       console.warn('Error loading statistics:', error);
     }
-  };
-
-  // IAP FUNCTIONS COMMENTED OUT FOR SCREENSHOTS
-  /*
-  const initializeIAP = async () => {
-    // Commented out
-  };
-
-  const handleSuccessfulPurchase = async (purchase: InAppPurchases.InAppPurchase) => {
-    // Commented out
-  };
-
-  const purchaseRemoveAds = async () => {
-    // Commented out - just show alert
-    Alert.alert('Coming Soon!', 'Remove ads feature will be available in the App Store version.');
-  };
-
-  const restorePurchases = async () => {
-    // Commented out - just show alert
-    Alert.alert('Coming Soon!', 'Restore purchases will be available in the App Store version.');
-  };
-  */
-
-  // Temporary functions for screenshots
-  const purchaseRemoveAds = async () => {
-    Alert.alert('Coming Soon!', 'Remove ads feature will be available in the App Store version.');
-  };
-
-  const restorePurchases = async () => {
-    Alert.alert('Coming Soon!', 'Restore purchases will be available in the App Store version.');
   };
 
   const saveStatistics = async (newStats: Statistics) => {
@@ -399,10 +936,7 @@ function AppContent() {
     
     setUserMapping({});
     setSolved(false);
-    setHintsRemaining(puzzleDifficulty - 3);
-    if (puzzleDifficulty === 7) {
-      setHintsRemaining(3);
-    }
+    setHintsRemaining(getInitialHints(puzzleDifficulty));
     setCorrectLetters(new Set());
     setLastTypedLetter(null);
     setPatternStreak(0);
@@ -442,18 +976,24 @@ function AppContent() {
         
         if (letterAppearsInWords >= 3) {
           setPatternStreak(prev => prev + letterAppearsInWords);
-          setTotalPatternPoints(prev => prev + letterAppearsInWords);
-          setShowPatternBonusAnimation(true);
-          setTimeout(() => setShowPatternBonusAnimation(false), 2000);
-          
-          if ((totalPatternPoints + letterAppearsInWords) % 10 === 0) {
-            setHintsRemaining(prev => prev + 1);
-            try {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (error) {
-              // Haptics not available
+          setTotalPatternPoints(prev => {
+            const newTotal = prev + letterAppearsInWords;
+            
+            // Award bonus hint every 5 pattern points
+            if (Math.floor(newTotal / 5) > Math.floor(prev / 5)) {
+              setHintsRemaining(hints => hints + 1);
+              setShowPatternBonusAnimation(true);
+              setTimeout(() => setShowPatternBonusAnimation(false), 2000);
+              
+              try {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } catch (error) {
+                // Haptics not available
+              }
             }
-          }
+            
+            return newTotal;
+          });
         }
       } else {
         setPatternStreak(0);
@@ -517,29 +1057,50 @@ function AppContent() {
         ]);
       }
       
+      // SAFER FOCUS LOGIC - CORRECTED VERSION
       if (upperValue) {
+        // Helper function to safely focus an input
+        const safelyFocusInput = (wordIdx: number, letterIdx: number): boolean => {
+          const key = `${wordIdx}-${letterIdx}`;
+          const ref = inputRefs.current[key];
+          
+          if (ref && ref.focus && typeof ref.focus === 'function') {
+            try {
+              // Add a small delay to ensure the ref is ready
+              setTimeout(() => {
+                if (ref && ref.focus && typeof ref.focus === 'function') {
+                  ref.focus();
+                }
+              }, 50);
+              return true;
+            } catch (error) {
+              console.warn(`Failed to focus input ${key}:`, error);
+              return false;
+            }
+          }
+          return false;
+        };
+
         let found = false;
         
+        // Look for next empty input in current word
         for (let i = letterIndex + 1; i < currentPuzzle.encodedWords[wordIndex].length; i++) {
           const nextLetter = currentPuzzle.encodedWords[wordIndex][i];
           if (!newMapping[nextLetter]) {
-            const ref = inputRefs.current[`${wordIndex}-${i}`];
-            if (ref) {
-              ref.focus();
+            if (safelyFocusInput(wordIndex, i)) {
               found = true;
               break;
             }
           }
         }
         
+        // Look for next empty input in subsequent words
         if (!found) {
           for (let w = wordIndex + 1; w < currentPuzzle.encodedWords.length; w++) {
             for (let l = 0; l < currentPuzzle.encodedWords[w].length; l++) {
               const nextLetter = currentPuzzle.encodedWords[w][l];
               if (!newMapping[nextLetter]) {
-                const ref = inputRefs.current[`${w}-${l}`];
-                if (ref) {
-                  ref.focus();
+                if (safelyFocusInput(w, l)) {
                   found = true;
                   break;
                 }
@@ -549,15 +1110,14 @@ function AppContent() {
           }
         }
         
+        // Look for empty inputs from the beginning (wrap around)
         if (!found) {
           for (let w = 0; w <= wordIndex; w++) {
             const maxL = w === wordIndex ? letterIndex : currentPuzzle.encodedWords[w].length;
             for (let l = 0; l < maxL; l++) {
               const nextLetter = currentPuzzle.encodedWords[w][l];
               if (!newMapping[nextLetter]) {
-                const ref = inputRefs.current[`${w}-${l}`];
-                if (ref) {
-                  ref.focus();
+                if (safelyFocusInput(w, l)) {
                   found = true;
                   break;
                 }
@@ -750,7 +1310,7 @@ function AppContent() {
 
   const renderLetterInput = useCallback((letter: string, wordIndex: number, letterIndex: number) => {
     const isCorrect = correctLetters.has(letter);
-    const colorScheme = colorSchemes[letterColorScheme as keyof typeof colorSchemes];
+    const colorScheme = colorSchemes[letterColorScheme as keyof typeof colorSchemes] || colorSchemes.green;
     const { width: screenWidth } = Dimensions.get('window');
     const isTablet = screenWidth >= 768;
     const boxSize = isTablet ? 48 : letterBoxSize;
@@ -762,17 +1322,12 @@ function AppContent() {
           style={[
             styles.letterInput,
             { 
-              backgroundColor: theme.inputBg, 
-              color: theme.text, 
-              borderColor: theme.border,
+              backgroundColor: isCorrect ? colorScheme.bg : theme.inputBg,
+              color: isCorrect ? colorScheme.text : theme.text,
+              borderColor: isCorrect ? colorScheme.bg : theme.border,
               width: boxSize,
               height: boxSize,
               fontSize: fontSize,
-            },
-            isCorrect && { 
-              backgroundColor: colorScheme.bg, 
-              color: colorScheme.text,
-              borderColor: colorScheme.bg 
             }
           ]}
           value={userMapping[letter] || ''}
@@ -790,7 +1345,33 @@ function AppContent() {
         <Text style={[styles.cipherLetter, { color: theme.secondaryText, fontSize: isTablet ? 14 : 10 }]}>{letter}</Text>
       </View>
     );
-  }, [correctLetters, letterColorScheme, theme, userMapping, handleLetterInput, solved]);
+  }, [correctLetters, letterColorScheme, theme, userMapping, handleLetterInput, solved, letterBoxSize]);
+
+  const AdBanner = useCallback(() => {
+    if (!isAdMobAvailable || !BannerAd || !BannerAdSize || !adUnitId || Platform.OS !== 'ios') {
+      return null;
+    }
+
+    try {
+      return (
+        <View style={styles.adContainer}>
+          <BannerAd
+            unitId={adUnitId}
+            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+            requestOptions={{
+              requestNonPersonalizedAdsOnly: true,
+            }}
+            onAdFailedToLoad={(error: any) => {
+              console.warn('Banner ad failed to load:', error);
+            }}
+          />
+        </View>
+      );
+    } catch (error) {
+      console.warn('Error rendering banner ad:', error);
+      return null;
+    }
+  }, []);
 
   // Loading Screen
   if (isLoading) {
@@ -820,7 +1401,7 @@ function AppContent() {
         </View>
 
         <ScrollView 
-          contentContainerStyle={[styles.welcomeContent, { paddingBottom: 40 }]}
+          contentContainerStyle={[styles.welcomeContent, { paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -843,7 +1424,7 @@ function AppContent() {
               {'\n'}
               • Find letters that appear in 3+ words for bonus points
               {'\n'}
-              • Every 10 pattern points earns a free hint
+              • Every 5 pattern points earns a free hint
               {'\n'}
               • Build combos for higher scores!
             </Text>
@@ -854,10 +1435,10 @@ function AppContent() {
           </Text>
 
           {[
-            { level: 4, name: 'Easy', desc: '4 words, 1 hint', color: '#2ecc71' },
-            { level: 5, name: 'Medium', desc: '5 words, 2 hints', color: '#f39c12' },
-            { level: 6, name: 'Hard', desc: '6 words, 3 hints', color: '#e74c3c' },
-            { level: 7, name: 'Expert', desc: '7 words, 3 hints', color: '#9b59b6' },
+            { level: 4, name: 'Easy', desc: '4 words, 3 hints', color: '#2ecc71' },
+            { level: 5, name: 'Medium', desc: '5 words, 3 hints', color: '#f39c12' },
+            { level: 6, name: 'Hard', desc: '6 words, 2 hints', color: '#e74c3c' },
+            { level: 7, name: 'Expert', desc: '7 words, 1 hint', color: '#9b59b6' },
           ].map(({ level, name, desc, color }) => {
             const stats = statistics[level];
             const successRate = stats && stats.played > 0 
@@ -930,160 +1511,344 @@ function AppContent() {
           </View>
         </ScrollView>
 
-        {/* Ad Banner placeholder for screenshots */}
-        <View style={[
-          styles.adContainer, 
-          { 
-            backgroundColor: '#f0f0f0', 
-            height: isTablet ? 90 : 50, 
-            justifyContent: 'center', 
-            alignItems: 'center' 
-          }
-        ]}>
-          <Text style={{ color: '#999', fontSize: isTablet ? 16 : 12 }}>Ad Banner Space</Text>
-      </View>
+        {/* Ad Banner - iOS only */}
+        <AdBanner />
 
-      {/* Settings Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showSettings}
-        onRequestClose={() => setShowSettings(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Letter Color Settings</Text>
-            <View style={styles.colorGrid}>
-              {Object.entries(colorSchemes).map(([name, scheme]) => (
+        {/* Settings Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showSettings}
+          onRequestClose={() => setShowSettings(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Settings</Text>
+              
+              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Letter Color</Text>
+              <View style={styles.colorGrid}>
+                {Object.entries(colorSchemes).map(([name, scheme]) => (
+                  <TouchableOpacity
+                    key={name}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: scheme.bg },
+                      letterColorScheme === name && styles.selectedColor
+                    ]}
+                    onPress={() => selectColorScheme(name)}
+                  >
+                    <Text style={[styles.colorOptionText, { color: scheme.text }]}>
+                      {name.charAt(0).toUpperCase() + name.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+                onPress={() => setShowSettings(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Difficulty Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showDifficultyModal}
+          onRequestClose={() => setShowDifficultyModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Select Difficulty</Text>
+              {[
+                { level: 4, name: 'Easy', desc: '4 words, 3 hints' },
+                { level: 5, name: 'Medium', desc: '5 words, 3 hints' },
+                { level: 6, name: 'Hard', desc: '6 words, 2 hints' },
+                { level: 7, name: 'Expert', desc: '7 words, 1 hint' },
+              ].map(({ level, name, desc }) => (
                 <TouchableOpacity
-                  key={name}
+                  key={level}
                   style={[
-                    styles.colorOption,
-                    { backgroundColor: scheme.bg },
-                    letterColorScheme === name && styles.selectedColor
+                    styles.difficultyOption,
+                    { backgroundColor: theme.background, borderColor: theme.border },
+                    difficulty === level && { backgroundColor: theme.accent }
                   ]}
-                  onPress={() => selectColorScheme(name)}
+                  onPress={() => {
+                    setDifficulty(level);
+                    saveSettings('difficulty', level.toString());
+                    setShowDifficultyModal(false);
+                    generateNewPuzzle(false, level);
+                    try {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    } catch (error) {
+                      // Haptics not available
+                    }
+                  }}
                 >
-                  <Text style={[styles.colorOptionText, { color: scheme.text }]}>
-                    {name.charAt(0).toUpperCase() + name.slice(1)}
+                  <Text style={[
+                    styles.difficultyOptionTitle,
+                    { color: difficulty === level ? '#fff' : theme.text }
+                  ]}>
+                    {name}
+                  </Text>
+                  <Text style={[
+                    styles.difficultyOptionDesc,
+                    { color: difficulty === level ? '#fff' : theme.secondaryText }
+                  ]}>
+                    {desc}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-            <TouchableOpacity 
-              style={[styles.closeButton, { backgroundColor: theme.accent }]} 
-              onPress={() => setShowSettings(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Difficulty Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showDifficultyModal}
-        onRequestClose={() => setShowDifficultyModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Difficulty</Text>
-            {[
-              { level: 4, name: 'Easy', desc: '4 words, 1 hint' },
-              { level: 5, name: 'Medium', desc: '5 words, 2 hints' },
-              { level: 6, name: 'Hard', desc: '6 words, 3 hints' },
-              { level: 7, name: 'Expert', desc: '7 words, 3 hints' },
-            ].map(({ level, name, desc }) => (
-              <TouchableOpacity
-                key={level}
-                style={[
-                  styles.difficultyOption,
-                  { backgroundColor: theme.background, borderColor: theme.border },
-                  difficulty === level && { backgroundColor: theme.accent }
-                ]}
-                onPress={() => {
-                  setDifficulty(level);
-                  saveSettings('difficulty', level.toString());
-                  setShowDifficultyModal(false);
-                  generateNewPuzzle(false, level);
-                  try {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  } catch (error) {
-                    // Haptics not available
-                  }
-                }}
+              <TouchableOpacity 
+                style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+                onPress={() => setShowDifficultyModal(false)}
               >
-                <Text style={[
-                  styles.difficultyOptionTitle,
-                  { color: difficulty === level ? '#fff' : theme.text }
-                ]}>
-                  {name}
-                </Text>
-                <Text style={[
-                  styles.difficultyOptionDesc,
-                  { color: difficulty === level ? '#fff' : theme.secondaryText }
-                ]}>
-                  {desc}
-                </Text>
+                <Text style={styles.closeButtonText}>Close</Text>
               </TouchableOpacity>
-            ))}
-            <TouchableOpacity 
-              style={[styles.closeButton, { backgroundColor: theme.accent }]} 
-              onPress={() => setShowDifficultyModal(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Statistics Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showStats}
-        onRequestClose={() => setShowStats(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Statistics</Text>
-            <View style={styles.statsContainer}>
-              {[4, 5, 6, 7].map((level) => {
-                const stats = statistics[level];
-                const successRate = stats && stats.played > 0 
-                  ? Math.round((stats.won / stats.played) * 100) 
-                  : 0;
-                const levelName = level === 4 ? 'Easy' : level === 5 ? 'Medium' : level === 6 ? 'Hard' : 'Expert';
-                
-                return (
-                  <View key={level} style={[styles.statRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
-                    <Text style={[styles.statLevelName, { color: theme.text }]}>{levelName}</Text>
-                    <View style={styles.statDetails}>
-                      <Text style={[styles.statText, { color: theme.secondaryText }]}>
-                        Played: {stats.played}
-                      </Text>
-                      <Text style={[styles.statText, { color: theme.secondaryText }]}>
-                        Won: {stats.won}
-                      </Text>
-                      <Text style={[styles.statPercentage, { color: theme.accent }]}>
-                        {successRate}%
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
             </View>
-            <TouchableOpacity 
-              style={[styles.closeButton, { backgroundColor: theme.accent }]} 
-              onPress={() => setShowStats(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
           </View>
+        </Modal>
+
+        {/* Statistics Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showStats}
+          onRequestClose={() => setShowStats(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Statistics</Text>
+              <View style={styles.statsContainer}>
+                {[4, 5, 6, 7].map((level) => {
+                  const stats = statistics[level];
+                  const successRate = stats && stats.played > 0 
+                    ? Math.round((stats.won / stats.played) * 100) 
+                    : 0;
+                  const levelName = level === 4 ? 'Easy' : level === 5 ? 'Medium' : level === 6 ? 'Hard' : 'Expert';
+                  
+                  return (
+                    <View key={level} style={[styles.statRow, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                      <Text style={[styles.statLevelName, { color: theme.text }]}>{levelName}</Text>
+                      <View style={styles.statDetails}>
+                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                          Played: {stats.played}
+                        </Text>
+                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                          Won: {stats.won}
+                        </Text>
+                        <Text style={[styles.statPercentage, { color: theme.accent }]}>
+                          {successRate}%
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <TouchableOpacity 
+                style={[styles.closeButton, { backgroundColor: theme.accent }]} 
+                onPress={() => setShowStats(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    );
+  }
+
+  // Game Screen
+  const { width: screenWidth } = Dimensions.get('window');
+  const isTablet = screenWidth >= 768;
+  
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+      
+      <View style={[styles.header, { backgroundColor: theme.headerBg }]}>
+        <Text style={[styles.headerTitle, { color: theme.accent, fontSize: isTablet ? 32 : 20 }]}>WordShift</Text>
+        <View style={styles.headerControls}>
+          <TouchableOpacity 
+            style={[styles.difficultyDisplay, { backgroundColor: theme.cardBg }]}
+            onPress={() => setShowDifficultyModal(true)}
+          >
+            <Text style={[styles.difficultyDisplayText, { color: theme.text }]}>
+              {difficulty === 4 ? 'Easy' : difficulty === 5 ? 'Medium' : difficulty === 6 ? 'Hard' : 'Expert'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleTheme} style={styles.themeButton}>
+            <Text style={styles.themeIcon}>{isDarkMode ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </View>
+
+      <KeyboardAvoidingView 
+        style={styles.mainContent}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: isTablet ? 100 : 60 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {currentPuzzle && (
+            <>
+              <Text style={[styles.categoryText, { color: theme.secondaryText, fontSize: isTablet ? 20 : 16 }]}>
+                Category: <Text style={{ fontWeight: 'bold', color: theme.text }}>
+                  {currentPuzzle.category}
+                </Text>
+              </Text>
+
+              {patternStreak > 0 && (
+                <View style={[styles.patternStreakContainer, { backgroundColor: theme.accent }]}>
+                  <Text style={styles.patternStreakText}>
+                    Pattern Streak: {patternStreak}
+                  </Text>
+                  <Text style={styles.patternPointsText}>
+                    Total Points: {totalPatternPoints} • Next Hint: {5 - (totalPatternPoints % 5)}
+                  </Text>
+                </View>
+              )}
+
+              {showPatternBonusAnimation && (
+                <View style={styles.bonusAnimationContainer}>
+                  <Text style={[styles.bonusAnimationText, { color: theme.success }]}>
+                    +1 Bonus Hint!
+                  </Text>
+                </View>
+              )}
+
+              {solved && (
+                <Text style={[styles.successMessage, { color: theme.success }]}>
+                  🎉 Congratulations! 🎉
+                </Text>
+              )}
+
+              <View style={[styles.puzzleContainer, { backgroundColor: theme.cardBg }]}>
+                <ScrollView 
+                  horizontal={true} 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ flexGrow: 1 }}
+                >
+                  <View style={{ alignItems: 'center', width: '100%' }}>
+                    {currentPuzzle.encodedWords.map((word, wordIndex) => (
+                      <View key={wordIndex} style={styles.wordRow}>
+                        {word.split('').map((letter, letterIndex) => 
+                          renderLetterInput(letter, wordIndex, letterIndex)
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+
+              <View style={styles.controlsPanel}>
+                <TouchableOpacity 
+                  style={[styles.button, styles.primaryButton, { opacity: hintsRemaining > 0 && !solved ? 1 : 0.5 }]} 
+                  onPress={getHint}
+                  disabled={hintsRemaining <= 0 || solved}
+                >
+                  <Text style={styles.buttonText}>
+                    Hint ({hintsRemaining})
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.button, styles.primaryButton]} 
+                  onPress={() => setShowFrequency(!showFrequency)}
+                >
+                  <Text style={styles.buttonText}>
+                    {showFrequency ? 'Hide' : 'Show'} Frequency
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.button, styles.secondaryButton, { borderColor: theme.border, backgroundColor: theme.background }]} 
+                  onPress={() => generateNewPuzzle()}
+                >
+                  <Text style={[styles.buttonText, { color: theme.text }]}>
+                    New Puzzle
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.smallButtonsRow}>
+                <TouchableOpacity 
+                  style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+                  onPress={undoLastLetter}
+                  disabled={!lastTypedLetter || solved}
+                >
+                  <Text style={[styles.smallButtonText, { color: theme.text }]}>
+                    ↶ Undo
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+                  onPress={giveUp}
+                  disabled={solved}
+                >
+                  <Text style={[styles.smallButtonText, { color: theme.text }]}>
+                    Give Up
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.smallButton, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+                  onPress={() => {
+                    setShowWelcomeScreen(true);
+                    setCurrentPuzzle(null);
+                  }}
+                >
+                  <Text style={[styles.smallButtonText, { color: theme.text }]}>
+                    Menu
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {showFrequency && Object.keys(letterFrequency).length > 0 && (
+                <View style={[styles.frequencyContainer, { backgroundColor: theme.cardBg }]}>
+                  <Text style={[styles.frequencyTitle, { color: theme.text }]}>Letter Frequency</Text>
+                  <ScrollView style={styles.frequencyScrollView} showsVerticalScrollIndicator={false}>
+                    <View style={styles.frequencyGrid}>
+                      {Object.entries(letterFrequency)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([letter, count]) => (
+                          <View 
+                            key={letter}
+                            style={[
+                              styles.frequencyItem,
+                              { 
+                                backgroundColor: theme.background,
+                                borderColor: theme.border,
+                              }
+                            ]}
+                          >
+                            <Text style={[styles.frequencyLetter, { color: theme.text }]}>
+                              {letter}
+                            </Text>
+                            <Text style={[styles.frequencyCount, { color: theme.secondaryText }]}>
+                              {count}
+                            </Text>
+                          </View>
+                        ))
+                      }
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Ad Banner - iOS only */}
+      {currentPuzzle && <AdBanner />}
     </SafeAreaView>
   );
 }
@@ -1095,504 +1860,3 @@ export default function App() {
     </ErrorBoundary>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    fontFamily: Platform.OS === 'ios' ? 'Avenir-Black' : 'sans-serif-black',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-  },
-  headerControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  difficultyDisplay: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    zIndex: 1,
-  },
-  difficultyDisplayText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  themeButton: {
-    padding: 8,
-    borderRadius: 6,
-    marginLeft: 'auto',
-    zIndex: 1,
-  },
-  themeIcon: {
-    fontSize: 24,
-  },
-  mainContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  categoryText: {
-    textAlign: 'center',
-    fontSize: 16,
-    marginTop: 15,
-    marginBottom: 8,
-  },
-  successMessage: {
-    textAlign: 'center',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginVertical: 10,
-  },
-  puzzleContainer: {
-    padding: 15,
-    borderRadius: 10,
-    marginVertical: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  wordRow: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    justifyContent: 'center',
-    marginBottom: 12,
-    gap: 4,
-  },
-  letterGroup: {
-    alignItems: 'center',
-  },
-  letterInput: {
-    width: 32,
-    height: 32,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderRadius: 4,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  cipherLetter: {
-    fontSize: 10,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  controlsPanel: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  button: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  primaryButton: {
-    backgroundColor: '#3498db',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  smallButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 20,
-  },
-  smallButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  smallButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  frequencyContainer: {
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    maxHeight: 200,
-  },
-  frequencyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  frequencyScrollView: {
-    maxHeight: 150,
-  },
-  frequencyGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
-    paddingBottom: 10,
-  },
-  frequencyItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  frequencyLetter: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  frequencyCount: {
-    fontSize: 12,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    padding: 20,
-    borderRadius: 10,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  colorGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 20,
-  },
-  colorOption: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  selectedColor: {
-    borderWidth: 3,
-    borderColor: '#fff',
-  },
-  colorOptionText: {
-    fontWeight: '600',
-  },
-  closeButton: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  difficultyOption: {
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  difficultyOptionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  difficultyOptionDesc: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  statsContainer: {
-    marginBottom: 20,
-  },
-  statRow: {
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  statLevelName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  statDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statText: {
-    fontSize: 14,
-  },
-  statPercentage: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  welcomeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  welcomeTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  welcomeContent: {
-    padding: 15,
-    flexGrow: 1,
-    paddingBottom: 80, // Extra padding for ad banner
-  },
-  instructionsCard: {
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  instructionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  instructionsText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  selectDifficultyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  difficultyCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  difficultyCardLeft: {
-    flex: 1,
-  },
-  difficultyCardRight: {
-    alignItems: 'flex-end',
-  },
-  difficultyName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  difficultyDesc: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  difficultyStats: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  playButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 6,
-    color: 'white',
-    fontWeight: '600',
-  },
-  bottomButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginTop: 20,
-  },
-  bottomButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  bottomButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  errorButton: {
-    backgroundColor: '#3498db',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  errorButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  splashTitle: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 20,
-    fontFamily: Platform.OS === 'ios' ? 'Avenir-Black' : 'sans-serif-black',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
-  },
-  splashSubtitle: {
-    fontSize: 18,
-    color: '#ffffff',
-    marginTop: 20,
-    opacity: 0.8,
-  },
-  patternStreakContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginVertical: 8,
-    alignSelf: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  patternStreakText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  patternPointsText: {
-    color: '#ffffff',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 2,
-    opacity: 0.9,
-  },
-  bonusAnimationContainer: {
-    position: 'absolute',
-    top: 100,
-    alignSelf: 'center',
-    zIndex: 1000,
-  },
-  bonusAnimationText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  adContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-  },
-  settingsSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  removeAdsSection: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  purchaseButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  purchaseButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  restoreButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  restoreButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});

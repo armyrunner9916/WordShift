@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "WordShift",
     slug: "wordshift",
-    version: "1.1.0",
+    version: "1.3.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     // scheme: "wordshift", // COMMENTED OUT FOR EXPO GO
@@ -19,7 +19,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.steveomatic.wordshift",
-      buildNumber: "3",
+      buildNumber: "1",
       infoPlist: {
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: false
