@@ -25,6 +25,14 @@ import {
 // Google Mobile Ads - PROPERLY FIXED VERSION
 import MobileAds, { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
+// Import word lists from JSON file
+import wordListsData from './assets/wordLists.json';
+
+// Type for the word lists
+type WordListsData = {
+  [key: string]: string[];
+};
+
 // Initialize immediately for iOS to prevent crashes
 if (Platform.OS === 'ios') {
   MobileAds().initialize().catch((error) => {
@@ -104,56 +112,13 @@ const Storage = {
   }
 };
 
-// Enhanced word lists with exactly 20 words per category
-const wordLists = {
-  fruits: ['APPLE', 'BANANA', 'CHERRY', 'ORANGE', 'MANGO', 'GRAPE', 'LEMON', 'PEACH', 'PLUM', 'KIWI', 'MELON', 'PAPAYA', 'COCONUT', 'APRICOT', 'PINEAPPLE', 'STRAWBERRY', 'BLUEBERRY', 'GUAVA', 'LYCHEE', 'PEAR'],
-  
-  vegetables: ['CARROT', 'POTATO', 'TOMATO', 'ONION', 'PEPPER', 'CELERY', 'LETTUCE', 'CUCUMBER', 'SPINACH', 'CABBAGE', 'GARLIC', 'RADISH', 'BROCCOLI', 'CORN', 'PUMPKIN', 'EGGPLANT', 'ASPARAGUS', 'TURNIP', 'SQUASH', 'ZUCCHINI'],
-  
-  animals: ['TIGER', 'EAGLE', 'RABBIT', 'DOLPHIN', 'MONKEY', 'GIRAFFE', 'PENGUIN', 'OCTOPUS', 'ZEBRA', 'TURTLE', 'ELEPHANT', 'KANGAROO', 'LEOPARD', 'WHALE', 'SNAKE', 'PARROT', 'HAMSTER', 'BEAR', 'LION', 'HORSE'],
-  
-  professions: ['DOCTOR', 'TEACHER', 'ARTIST', 'PILOT', 'CHEF', 'NURSE', 'LAWYER', 'DENTIST', 'AUTHOR', 'FARMER', 'BANKER', 'ACTOR', 'SINGER', 'DANCER', 'ATHLETE', 'ENGINEER', 'SCIENTIST', 'PHARMACIST', 'MECHANIC', 'THERAPIST'],
-  
-  countries: ['FRANCE', 'BRAZIL', 'CANADA', 'MEXICO', 'INDIA', 'EGYPT', 'SWEDEN', 'TURKEY', 'POLAND', 'GREECE', 'NORWAY', 'VIETNAM', 'SPAIN', 'GERMANY', 'JAPAN', 'ICELAND', 'MOROCCO', 'ARGENTINA', 'CHILE', 'THAILAND'],
-  
-  sports: ['SOCCER', 'TENNIS', 'SKIING', 'BOXING', 'GOLF', 'HOCKEY', 'RUGBY', 'CYCLING', 'ARCHERY', 'FENCING', 'ROWING', 'SURFING', 'BASEBALL', 'BOWLING', 'SWIMMING', 'RUNNING', 'KARATE', 'WRESTLING', 'CRICKET', 'DIVING'],
-  
-  kitchen: ['KNIFE', 'SPOON', 'PLATE', 'BOWL', 'FORK', 'STOVE', 'OVEN', 'MIXER', 'TIMER', 'SCALE', 'PANTRY', 'FREEZER', 'BLENDER', 'TOASTER', 'GRIDDLE', 'SKILLET', 'WHISK', 'SPATULA', 'TONGS', 'KETTLE'],
-  
-  weather: ['SUNNY', 'CLOUDY', 'STORM', 'WINDY', 'FOGGY', 'SNOW', 'RAIN', 'THUNDER', 'HUMID', 'BREEZE', 'DRIZZLE', 'TORNADO', 'FROST', 'HAIL', 'SLEET', 'DROUGHT', 'RAINBOW', 'MISTY', 'CHILLY', 'OVERCAST'],
-  
-  emotions: ['HAPPY', 'EXCITED', 'NERVOUS', 'ANGRY', 'PROUD', 'LONELY', 'BRAVE', 'CURIOUS', 'JEALOUS', 'PEACEFUL', 'GRATEFUL', 'WORRIED', 'CONFUSED', 'HOPEFUL', 'FEARFUL', 'JOYFUL', 'ANXIOUS', 'RELIEVED', 'SURPRISED', 'CONTENT'],
-  
-  transportation: ['PLANE', 'TRAIN', 'BICYCLE', 'SUBWAY', 'FERRY', 'ROCKET', 'SCOOTER', 'YACHT', 'TAXI', 'TRUCK', 'CANOE', 'TRAM', 'HELICOPTER', 'MOTORCYCLE', 'SKATEBOARD', 'SAILBOAT', 'BALLOON', 'BOAT', 'SHIP', 'KAYAK'],
-  
-  instruments: ['PIANO', 'GUITAR', 'VIOLIN', 'TRUMPET', 'DRUMS', 'FLUTE', 'HARP', 'CELLO', 'OBOE', 'BANJO', 'ORGAN', 'TUBA', 'CLARINET', 'SAXOPHONE', 'UKULELE', 'ACCORDION', 'XYLOPHONE', 'BONGO', 'TAMBOURINE', 'MARIMBA'],
-  
-  clothing: ['SHIRT', 'JACKET', 'GLOVES', 'SCARF', 'BOOTS', 'SWEATER', 'SOCKS', 'BELT', 'COAT', 'DRESS', 'JEANS', 'SHORTS', 'PAJAMAS', 'UNIFORM', 'SANDALS', 'MITTENS', 'VEST', 'HOODIE', 'SKIRT', 'BLOUSE'],
-  
-  technology: ['COMPUTER', 'PHONE', 'TABLET', 'CAMERA', 'PRINTER', 'MONITOR', 'KEYBOARD', 'MOUSE', 'SPEAKER', 'ROUTER', 'LAPTOP', 'HEADPHONES', 'MICROPHONE', 'SCANNER', 'PROJECTOR', 'WEBCAM', 'CHARGER', 'CONSOLE', 'DRONE', 'SERVER'],
-  
-  furniture: ['CHAIR', 'TABLE', 'COUCH', 'DESK', 'LAMP', 'SHELF', 'DRESSER', 'MIRROR', 'CABINET', 'STOOL', 'BENCH', 'OTTOMAN', 'BOOKCASE', 'WARDROBE', 'NIGHTSTAND', 'RECLINER', 'MATTRESS', 'ARMCHAIR', 'VANITY', 'SOFA'],
-  
-  hobbies: ['READING', 'GAMING', 'HIKING', 'PAINTING', 'DANCING', 'SINGING', 'WRITING', 'FISHING', 'COOKING', 'KNITTING', 'CAMPING', 'DRAWING', 'COLLECTING', 'GARDENING', 'TRAVELING', 'BAKING', 'SEWING', 'YOGA', 'JUGGLING', 'BIKING'],
-  
-  school: ['PENCIL', 'NOTEBOOK', 'BACKPACK', 'ERASER', 'RULER', 'TEXTBOOK', 'CLASSROOM', 'TEACHER', 'STUDENT', 'LIBRARY', 'CAFETERIA', 'HOMEWORK', 'EXAM', 'DIPLOMA', 'PRINCIPAL', 'SCIENCE', 'HISTORY', 'CHALKBOARD', 'MARKER', 'QUIZ'],
-  
-  colors: ['PURPLE', 'ORANGE', 'YELLOW', 'GREEN', 'BLUE', 'PINK', 'BROWN', 'BLACK', 'WHITE', 'GRAY', 'SILVER', 'GOLD', 'MAROON', 'TURQUOISE', 'MAGENTA', 'CRIMSON', 'BEIGE', 'CYAN', 'LAVENDER', 'INDIGO'],
-  
-  drinks: ['WATER', 'COFFEE', 'JUICE', 'MILK', 'SODA', 'LEMONADE', 'SMOOTHIE', 'COCOA', 'CIDER', 'SHAKE', 'PUNCH', 'ESPRESSO', 'CAPPUCCINO', 'CHAMPAGNE', 'MILKSHAKE', 'HERBAL', 'MOCHA', 'ENERGY', 'TONIC', 'LATTE'],
-  
-  desserts: ['CAKE', 'COOKIE', 'BROWNIE', 'PUDDING', 'CUPCAKE', 'DONUT', 'MUFFIN', 'PASTRY', 'CANDY', 'CHOCOLATE', 'FUDGE', 'TRUFFLE', 'TART', 'SUNDAE', 'CHEESECAKE', 'MOUSSE', 'SORBET', 'MACARON', 'ICECREAM', 'CANNOLI'],
-  
-  tools: ['HAMMER', 'WRENCH', 'PLIERS', 'DRILL', 'LEVEL', 'CHISEL', 'CLAMP', 'RULER', 'SANDER', 'SHOVEL', 'LADDER', 'TOOLBOX', 'CROWBAR', 'SCISSORS', 'GRINDER', 'TROWEL', 'MALLET', 'FILE', 'HACKSAW', 'VISE'],
-  
-  'Body Parts': ['HEAD', 'HAND', 'FOOT', 'KNEE', 'ELBOW', 'NECK', 'BACK', 'CHEST', 'FINGER', 'WRIST', 'ANKLE', 'THUMB', 'SHOULDER', 'TOOTH', 'STOMACH', 'THIGH', 'SHIN', 'SPINE', 'PALM', 'HEEL'],
-  
-  buildings: ['HOUSE', 'SCHOOL', 'HOSPITAL', 'CHURCH', 'BANK', 'STORE', 'MUSEUM', 'THEATER', 'STADIUM', 'LIBRARY', 'AIRPORT', 'CASTLE', 'PALACE', 'HOTEL', 'FACTORY', 'WAREHOUSE', 'APARTMENT', 'CABIN', 'DORM', 'SKYSCRAPER'],
-  
-  occupations: ['PLUMBER', 'MECHANIC', 'POLICE', 'JUDGE', 'BARBER', 'SCIENTIST', 'WRITER', 'CHEF', 'ACTOR', 'NURSE', 'COACH', 'MUSICIAN', 'ARCHITECT', 'PROGRAMMER', 'DIRECTOR', 'JANITOR', 'BAKER', 'TAILOR', 'SURGEON', 'CLERK'],
-  
-  actions: ['JUMP', 'SWIM', 'CLIMB', 'DANCE', 'READ', 'WRITE', 'SING', 'DRAW', 'COOK', 'LAUGH', 'SLEEP', 'DRINK', 'THROW', 'CATCH', 'BUILD', 'BREAK', 'WALK', 'TALK', 'THINK', 'PLAY']
-};
+// Process imported word lists to ensure exactly 20 words per category
+const wordLists: Record<string, string[]> = {};
+
+Object.entries(wordListsData as WordListsData).forEach(([category, words]) => {
+  // Take only the first 20 words from each category
+  wordLists[category] = words.slice(0, 20);
+});
 
 // Color schemes for letter backgrounds with high contrast text
 const colorSchemes = {
