@@ -19,7 +19,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.steveomatic.wordshift",
-      buildNumber: "1",
+      buildNumber: "8",
       infoPlist: {
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: false
@@ -50,7 +50,7 @@ export default {
     },
     android: {
       package: "com.steveomatic.wordshift",
-      versionCode: 2,
+      versionCode: 4,
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon.png",
         backgroundColor: "#3498db"
