@@ -18,7 +18,11 @@
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "cocoapods": "1.15.2"
+      },
+      "env": {
+        "EXPO_NO_DOTENV": "1"
       }
     }
   },

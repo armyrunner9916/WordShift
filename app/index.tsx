@@ -25,8 +25,15 @@ import {
 // Google Mobile Ads - PROPERLY FIXED VERSION
 import MobileAds, { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
-// Import word lists from JSON file
-import wordListsData from './assets/wordLists.json';
+// Import word lists from JSON file with error handling
+let wordListsData: WordListsData = {};
+try {
+  wordListsData = require('./assets/wordLists.json');
+} catch (error) {
+  console.error('Failed to load word lists:', error);
+  // Fallback to empty object to prevent crash
+  wordListsData = {};
+}
 
 // Type for the word lists
 type WordListsData = {
@@ -47,18 +54,33 @@ let isAdMobAvailable = false;
 const initializeAdMob = async () => {
   try {
     if (Platform.OS === 'ios') {
-      console.log('Checking Google Mobile Ads initialization...');
+      console.log('Checking Google Mobile Ads availability...');
       
-      // Set ad unit ID
-      if (!__DEV__) {
-        adUnitId = 'ca-app-pub-7368779159802085/3638014569';
-      } else {
-        // Use test ad ID for development
-        adUnitId = TestIds.BANNER;
+      // Check if the module was loaded successfully
+      if (!MobileAds || typeof MobileAds !== 'function') {
+        console.log('Google Mobile Ads module not available, skipping initialization');
+        isAdMobAvailable = false;
+        return;
       }
       
-      isAdMobAvailable = true;
-      console.log('Google Mobile Ads ready');
+      // Initialize the SDK
+      try {
+        await MobileAds().initialize();
+        console.log('Google Mobile Ads initialized successfully');
+        
+        // Set ad unit ID after successful initialization
+        if (!__DEV__) {
+          adUnitId = 'ca-app-pub-7368779159802085/3638014569';
+        } else {
+          // Use test ad ID for development
+          adUnitId = TestIds?.BANNER || '';
+        }
+        
+        isAdMobAvailable = true;
+      } catch (initError) {
+        console.warn('Failed to initialize Google Mobile Ads:', initError);
+        isAdMobAvailable = false;
+      }
     } else {
       console.log('Android platform detected - no ads (paid version)');
       isAdMobAvailable = false;
@@ -115,10 +137,21 @@ const Storage = {
 // Process imported word lists to ensure exactly 20 words per category
 const wordLists: Record<string, string[]> = {};
 
-Object.entries(wordListsData as WordListsData).forEach(([category, words]) => {
-  // Take only the first 20 words from each category
-  wordLists[category] = words.slice(0, 20);
-});
+try {
+  Object.entries(wordListsData as WordListsData).forEach(([category, words]) => {
+    // Ensure words is an array before processing
+    if (Array.isArray(words)) {
+      // Take only the first 20 words from each category
+      wordLists[category] = words.slice(0, 20);
+    } else {
+      console.warn(`Category ${category} does not have a valid word array`);
+    }
+  });
+} catch (error) {
+  console.error('Error processing word lists:', error);
+  // Fallback to a minimal word list to prevent crash
+  wordLists.fruits = ['APPLE', 'BANANA', 'CHERRY', 'ORANGE', 'MANGO', 'GRAPE', 'LEMON', 'PEACH', 'PLUM', 'KIWI', 'MELON', 'PAPAYA', 'COCONUT', 'APRICOT', 'PINEAPPLE', 'STRAWBERRY', 'BLUEBERRY', 'GUAVA', 'LYCHEE', 'PEAR'];
+}
 
 // Color schemes for letter backgrounds with high contrast text
 const colorSchemes = {
@@ -764,12 +797,16 @@ function AppContent() {
       try {
         console.log('Starting app initialization...');
         
-        // Initialize AdMob first (iOS only)
-        await initializeAdMob();
-        
-        // Load settings
+        // Load settings first
         await loadSettings();
         await loadStatistics();
+        
+        // Delay AdMob initialization to ensure app is ready
+        setTimeout(() => {
+          initializeAdMob().catch(error => {
+            console.error('AdMob initialization error:', error);
+          });
+        }, 2000); // 2 second delay
         
         console.log('App initialization complete');
       } catch (error) {
@@ -1313,7 +1350,21 @@ function AppContent() {
   }, [correctLetters, letterColorScheme, theme, userMapping, handleLetterInput, solved, letterBoxSize]);
 
   const AdBanner = useCallback(() => {
-    if (!isAdMobAvailable || !BannerAd || !BannerAdSize || !adUnitId || Platform.OS !== 'ios') {
+    // Multiple safety checks to prevent crashes
+    if (!isAdMobAvailable || !adUnitId || Platform.OS !== 'ios') {
+      return null;
+    }
+
+    // Check if components are available
+    if (!BannerAd || !BannerAdSize) {
+      console.log('Banner ad components not available');
+      return null;
+    }
+
+    // Check for valid ad size
+    const adSize = BannerAdSize?.ANCHORED_ADAPTIVE_BANNER || BannerAdSize?.ADAPTIVE_BANNER || BannerAdSize?.BANNER;
+    if (!adSize) {
+      console.log('No valid banner ad size available');
       return null;
     }
 
@@ -1322,21 +1373,24 @@ function AppContent() {
         <View style={styles.adContainer}>
           <BannerAd
             unitId={adUnitId}
-            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+            size={adSize}
             requestOptions={{
               requestNonPersonalizedAdsOnly: true,
             }}
+            onAdLoaded={() => {
+              console.log('Banner ad loaded successfully');
+            }}
             onAdFailedToLoad={(error: any) => {
-              console.warn('Banner ad failed to load:', error);
+              console.log('Banner ad failed to load:', error);
             }}
           />
         </View>
       );
     } catch (error) {
-      console.warn('Error rendering banner ad:', error);
+      console.log('Error rendering banner ad:', error);
       return null;
     }
-  }, []);
+  }, [isAdMobAvailable, adUnitId]);
 
   // Loading Screen
   if (isLoading) {
