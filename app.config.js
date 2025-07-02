@@ -5,7 +5,7 @@ export default {
     version: "1.4.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
-    // scheme: "wordshift", // COMMENTED OUT FOR EXPO GO
+    scheme: "wordshift", // UNCOMMENTED FOR PRODUCTION BUILD
     userInterfaceStyle: "automatic",
     owner: "armyrunne9916",
     splash: {
@@ -44,9 +44,9 @@ export default {
         ],
         NSUserTrackingUsageDescription: "This identifier will be used to deliver personalized ads to you."
       },
-      // config: {
-      //   googleMobileAdsAppId: "ca-app-pub-7368779159802085~7370758902"
-      // }
+      config: {
+        googleMobileAdsAppId: "ca-app-pub-7368779159802085~7370758902"
+      }
     },
     android: {
       package: "com.steveomatic.wordshift",
@@ -56,12 +56,13 @@ export default {
         backgroundColor: "#3498db"
       },
       permissions: ["VIBRATE", "com.android.vending.BILLING"],
-      // config: {
-      //   googleMobileAdsAppId: "ca-app-pub-7368779159802085~7370758902"
-      // }
+      config: {
+        googleMobileAdsAppId: "ca-app-pub-7368779159802085~7370758902"
+      }
     },
     plugins: [
       "expo-router",
+      "expo-web-browser",
       [
         "expo-splash-screen",
         {
@@ -71,13 +72,13 @@ export default {
           resizeMode: "contain"
         }
       ],
-      // [
-      //   "react-native-google-mobile-ads",
-      //   {
-      //     iosAppId: "ca-app-pub-7368779159802085~7370758902",
-      //     androidAppId: "ca-app-pub-7368779159802085~7370758902"
-      //   }
-      // ]
+      [
+        "react-native-google-mobile-ads",
+        {
+          iosAppId: "ca-app-pub-7368779159802085~7370758902",
+          androidAppId: "ca-app-pub-7368779159802085~7370758902"
+        }
+      ]
     ],
     extra: {
       eas: {
