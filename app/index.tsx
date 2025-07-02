@@ -53,40 +53,39 @@ let isAdMobAvailable = false;
 // Initialize Google Mobile Ads with proper error handling (iOS only)
 const initializeAdMob = async () => {
   try {
-    if (Platform.OS === 'ios') {
-      console.log('Checking Google Mobile Ads availability...');
+    if (Platform.OS === 'ios' && MobileAds) {
+      console.log('Starting Google Mobile Ads initialization...');
       
-      // Check if the module was loaded successfully
-      if (!MobileAds || typeof MobileAds !== 'function') {
-        console.log('Google Mobile Ads module not available, skipping initialization');
-        isAdMobAvailable = false;
-        return;
+      // Important: Call the initialization method correctly
+      // MobileAds is the class, not a function
+      const adMobInstance = MobileAds();
+      
+      // Set request configuration before initialization
+      await adMobInstance.setRequestConfiguration({
+        testDeviceIdentifiers: __DEV__ ? ['EMULATOR'] : [],
+        tagForChildDirectedTreatment: false,
+        tagForUnderAgeOfConsent: false,
+      });
+      
+      // Now initialize
+      const initializationStatus = await adMobInstance.initialize();
+      console.log('Google Mobile Ads initialized:', initializationStatus);
+      
+      // Set ad unit ID after successful initialization
+      if (!__DEV__) {
+        adUnitId = 'ca-app-pub-7368779159802085/3638014569';
+      } else {
+        adUnitId = TestIds?.BANNER || '';
       }
       
-      // Initialize the SDK
-      try {
-        await MobileAds().initialize();
-        console.log('Google Mobile Ads initialized successfully');
-        
-        // Set ad unit ID after successful initialization
-        if (!__DEV__) {
-          adUnitId = 'ca-app-pub-7368779159802085/3638014569';
-        } else {
-          // Use test ad ID for development
-          adUnitId = TestIds?.BANNER || '';
-        }
-        
-        isAdMobAvailable = true;
-      } catch (initError) {
-        console.warn('Failed to initialize Google Mobile Ads:', initError);
-        isAdMobAvailable = false;
-      }
-    } else {
+      isAdMobAvailable = true;
+      console.log('AdMob setup complete with ad unit:', adUnitId);
+    } else if (Platform.OS === 'android') {
       console.log('Android platform detected - no ads (paid version)');
       isAdMobAvailable = false;
     }
   } catch (error) {
-    console.warn('Failed to setup Google Mobile Ads:', error);
+    console.error('Failed to initialize Google Mobile Ads:', error);
     isAdMobAvailable = false;
     adUnitId = '';
   }
@@ -801,12 +800,16 @@ function AppContent() {
         await loadSettings();
         await loadStatistics();
         
-        // Delay AdMob initialization to ensure app is ready
+        // Wait longer before initializing AdMob to ensure React Native bridge is ready
         setTimeout(() => {
-          initializeAdMob().catch(error => {
-            console.error('AdMob initialization error:', error);
-          });
-        }, 2000); // 2 second delay
+          if (Platform.OS === 'ios') {
+            initializeAdMob().catch(error => {
+              console.error('AdMob initialization error:', error);
+              // Don't crash the app if ads fail to initialize
+              isAdMobAvailable = false;
+            });
+          }
+        }, 3000); // 3 second delay
         
         console.log('App initialization complete');
       } catch (error) {

@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "WordShift",
     slug: "wordshift",
-    version: "1.4.0",
+    version: "1.4.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "wordshift", // UNCOMMENTED FOR PRODUCTION BUILD
@@ -10,11 +10,13 @@ export default {
     owner: "armyrunne9916",
     splash: {
       image: "./assets/images/splash-icon.png",
-      resizeMode: "contain",
+      resizeMode: "cover",
       backgroundColor: "#3498db"
     },
     assetBundlePatterns: [
-      "**/*"
+      "**/*",
+      "assets/**/*",
+      "assets/wordLists.json"
     ],
     ios: {
       supportsTablet: true,
@@ -71,14 +73,15 @@ export default {
           imageWidth: 200,
           resizeMode: "contain"
         }
-      ],
-      [
-        "react-native-google-mobile-ads",
-        {
-          iosAppId: "ca-app-pub-7368779159802085~7370758902",
-          androidAppId: "ca-app-pub-7368779159802085~7370758902"
-        }
       ]
+      // Temporarily commented out to test build
+      // [
+      //   "react-native-google-mobile-ads",
+      //   {
+      //     iosAppId: "ca-app-pub-7368779159802085~7370758902",
+      //     androidAppId: "ca-app-pub-7368779159802085~7370758902"
+      //   }
+      // ]
     ],
     extra: {
       eas: {
